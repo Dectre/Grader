@@ -11,6 +11,7 @@ class PDFViewer(QWidget):
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(10)
 
         self.toolbar = QHBoxLayout()
         self.btn_zoom_in = QPushButton("Zoom In")
@@ -18,17 +19,12 @@ class PDFViewer(QWidget):
         self.btn_reset = QPushButton("Original Size")
         self.btn_fit_screen = QPushButton("Fit to Screen")
 
-        self.btn_zoom_in.clicked.connect(self.zoom_in)
-        self.btn_zoom_out.clicked.connect(self.zoom_out)
-        self.btn_reset.clicked.connect(self.reset_zoom)
-        self.btn_fit_screen.clicked.connect(self.fit_to_screen)
+        for btn in [self.btn_zoom_in, self.btn_zoom_out, self.btn_reset, self.btn_fit_screen]:
+            btn.setFixedHeight(35)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.toolbar.addWidget(btn)
 
-        self.toolbar.addWidget(self.btn_zoom_in)
-        self.toolbar.addWidget(self.btn_zoom_out)
-        self.toolbar.addWidget(self.btn_reset)
-        self.toolbar.addWidget(self.btn_fit_screen)
         self.toolbar.addStretch()
-
         self.layout.addLayout(self.toolbar)
 
         self.scroll_area = QScrollArea()

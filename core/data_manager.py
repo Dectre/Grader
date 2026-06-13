@@ -15,42 +15,54 @@ class DataManager:
 
         self.output_dir = "output"
         self.excel_path = os.path.join(self.output_dir, "grades.xlsx")
+        self.csv_path = os.path.join(self.output_dir, "grades.csv")
         self.pdf_dir = "PDFs"
 
-        self.setup_excel()
+        self.setup_dataframes()
         self.students = self.get_matched_students()
 
-    def setup_excel(self):
+    def setup_dataframes(self):
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        if not os.path.exists(self.excel_path):
-            cols = ['First Name', 'Last Name', 'Student ID'] + self.questions + ['Total Score', 'Description']
-            df = pd.DataFrame(columns=cols)
-            df.to_excel(self.excel_path, index=False)
-            self.prefill_excel_students()
+
+        cols = ['First Name', 'Last Name', 'Student ID'] + self.questions + ['Total Score', 'Description']
+
+        if os.path.exists(self.excel_path):
+            self.grades_df = pd.read_excel(self.excel_path)
+            self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+        else:
+            self.grades_df = pd.DataFrame(columns=cols)
+            new_rows = []
+            for _, row in self.students_df.iterrows():
+                if row['نام کاربری'] != 'nan' and bool(row['نام کاربری']):
+                    new_rows.append({
+                        'First Name': row['نام'],
+                        'Last Name': row['نام خانوادگی'],
+                        'Student ID': row['نام کاربری']
+                    })
+            if new_rows:
+                self.grades_df = pd.concat([self.grades_df, pd.DataFrame(new_rows)], ignore_index=True)
+            self.export_files()
+
+    def export_files(self):
+        self.grades_df.to_excel(self.excel_path, index=False)
+        self.grades_df.to_csv(self.csv_path, index=False, encoding='utf-8-sig')
         self.apply_excel_formatting()
 
-    def prefill_excel_students(self):
-        wb = load_workbook(self.excel_path)
-        ws = wb.active
-        for _, row in self.students_df.iterrows():
-            if row['نام کاربری'] != 'nan' and bool(row['نام کاربری']):
-                ws.cell(row=ws.max_row + 1, column=1, value=row['نام'])
-                ws.cell(row=ws.max_row, column=2, value=row['نام خانوادگی'])
-                ws.cell(row=ws.max_row, column=3, value=row['نام کاربری'])
-        wb.save(self.excel_path)
-
     def apply_excel_formatting(self):
-        wb = load_workbook(self.excel_path)
-        ws = wb.active
-        vazir_font = Font(name='Vazirmatn')
-        align_left = Alignment(horizontal='left', vertical='center')
-        for row in ws.iter_rows():
-            for cell in row:
-                cell.font = vazir_font
-                cell.alignment = align_left
-        ws.sheet_view.rightToLeft = False
-        wb.save(self.excel_path)
+        try:
+            wb = load_workbook(self.excel_path)
+            ws = wb.active
+            vazir_font = Font(name='Vazirmatn')
+            align_left = Alignment(horizontal='left', vertical='center')
+            for row in ws.iter_rows():
+                for cell in row:
+                    cell.font = vazir_font
+                    cell.alignment = align_left
+            ws.sheet_view.rightToLeft = False
+            wb.save(self.excel_path)
+        except Exception:
+            pass
 
     def get_matched_students(self):
         students_list = []
@@ -77,18 +89,12 @@ class DataManager:
         return None
 
     def save_grade(self, student_id, grades_dict, total, comments):
-        wb = load_workbook(self.excel_path)
-        ws = wb.active
-        row_to_update = None
-        for row in range(2, ws.max_row + 2):
-            if str(ws.cell(row=row, column=3).value) == str(student_id):
-                row_to_update = row
-                break
+        idx = self.grades_df.index[self.grades_df['Student ID'] == str(student_id)].tolist()
+        if idx:
+            row_idx = idx[0]
+            for q in self.questions:
+                self.grades_df.at[row_idx, q] = grades_dict.get(q, 0)
+            self.grades_df.at[row_idx, 'Total Score'] = total
+            self.grades_df.at[row_idx, 'Description'] = comments
 
-        if row_to_update is not None:
-            for idx, q in enumerate(self.questions):
-                ws.cell(row=row_to_update, column=4 + idx, value=grades_dict.get(q, 0))
-
-            ws.cell(row=row_to_update, column=4 + len(self.questions), value=total)
-            ws.cell(row=row_to_update, column=5 + len(self.questions), value=comments)
-            self.apply_excel_formatting()
+            self.export_files()
