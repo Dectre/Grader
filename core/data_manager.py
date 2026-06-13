@@ -88,6 +88,19 @@ class DataManager:
                 return os.path.join(self.pdf_dir, filename)
         return None
 
+    def get_saved_data(self, student_id):
+        idx = self.grades_df.index[self.grades_df['Student ID'] == str(student_id)].tolist()
+        if idx:
+            row = self.grades_df.iloc[idx[0]]
+            grades = {}
+            for q in self.questions:
+                val = row.get(q, 0.0)
+                grades[q] = 0.0 if pd.isna(val) else float(val)
+            desc = row.get('Description', '')
+            desc = "" if pd.isna(desc) else str(desc)
+            return grades, desc
+        return {q: 0.0 for q in self.questions}, ""
+
     def save_grade(self, student_id, grades_dict, total, comments):
         idx = self.grades_df.index[self.grades_df['Student ID'] == str(student_id)].tolist()
         if idx:
