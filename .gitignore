@@ -219,3 +219,6 @@ __marimo__/
 prompt.md
 .gitignore
 Data/tempstudents.csv
+PDFs
+Data/students.csv
+output/grades.xlsx

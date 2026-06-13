@@ -6,7 +6,7 @@ from openpyxl.styles import Font, Alignment
 class DataManager:
     def __init__(self):
         self.students_df = pd.read_csv(os.path.join("Data", "students.csv"), encoding='utf-8-sig')
-        self.students_df['نام کاربری'] = self.students_df['نام کاربری'].astype(str)
+        self.students_df['نام کاربری'] = self.students_df['نام کاربری'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
         self.students_df = self.students_df.sort_values(by='نام کاربری')
 
         self.rubric_df = pd.read_csv(os.path.join("Data", "rubric.csv"), encoding='utf-8-sig')
@@ -34,9 +34,10 @@ class DataManager:
         wb = load_workbook(self.excel_path)
         ws = wb.active
         for _, row in self.students_df.iterrows():
-            ws.cell(row=ws.max_row + 1, column=1, value=row['نام'])
-            ws.cell(row=ws.max_row, column=2, value=row['نام خانوادگی'])
-            ws.cell(row=ws.max_row, column=3, value=row['نام کاربری'])
+            if row['نام کاربری'] != 'nan' and bool(row['نام کاربری']):
+                ws.cell(row=ws.max_row + 1, column=1, value=row['نام'])
+                ws.cell(row=ws.max_row, column=2, value=row['نام خانوادگی'])
+                ws.cell(row=ws.max_row, column=3, value=row['نام کاربری'])
         wb.save(self.excel_path)
 
     def apply_excel_formatting(self):
@@ -55,6 +56,8 @@ class DataManager:
         students_list = []
         for _, row in self.students_df.iterrows():
             student_id = row['نام کاربری']
+            if student_id == 'nan' or not student_id:
+                continue
             pdf_path = self.find_pdf(student_id)
             if pdf_path:
                 students_list.append({
