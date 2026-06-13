@@ -21,31 +21,39 @@ class GradingApp(QWidget):
         self.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         
         main_app_layout = QVBoxLayout(self)
-        main_app_layout.setContentsMargins(10, 10, 10, 10)
-        main_app_layout.setSpacing(10)
+        main_app_layout.setContentsMargins(10, 5, 10, 10)
+        main_app_layout.setSpacing(5)
 
         top_bar = QHBoxLayout()
+        top_bar.setContentsMargins(0, 0, 0, 0)
         
         self.btn_toggle_sidebar = QPushButton("☰")
-        self.btn_toggle_sidebar.setFixedSize(40, 40)
-        self.btn_toggle_sidebar.setStyleSheet("font-size: 20px; border-radius: 6px;")
+        self.btn_toggle_sidebar.setFixedSize(35, 35)
+        self.btn_toggle_sidebar.setStyleSheet("font-size: 18px; border-radius: 6px;")
         self.btn_toggle_sidebar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_sidebar.clicked.connect(self.toggle_sidebar)
 
+        self.btn_toggle_pdf_toolbar = QPushButton("⌃")
+        self.btn_toggle_pdf_toolbar.setFixedSize(35, 35)
+        self.btn_toggle_pdf_toolbar.setStyleSheet("font-size: 18px; border-radius: 6px;")
+        self.btn_toggle_pdf_toolbar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle_pdf_toolbar.clicked.connect(self.toggle_pdf_toolbar)
+
         self.btn_theme = QPushButton("☀️")
-        self.btn_theme.setFixedSize(40, 40)
-        self.btn_theme.setStyleSheet("font-size: 20px; border-radius: 20px;")
+        self.btn_theme.setFixedSize(35, 35)
+        self.btn_theme.setStyleSheet("font-size: 18px; border-radius: 17px;")
         self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_theme.clicked.connect(self.toggle_theme)
 
         top_bar.addWidget(self.btn_toggle_sidebar)
+        top_bar.addWidget(self.btn_toggle_pdf_toolbar)
         top_bar.addStretch()
         top_bar.addWidget(self.btn_theme)
         
         main_app_layout.addLayout(top_bar)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(15)
+        content_layout.setSpacing(10)
 
         self.sidebar = QWidget()
         self.sidebar.setFixedWidth(380)
@@ -110,6 +118,11 @@ class GradingApp(QWidget):
         elif self.pdf_viewer.current_fit_mode == 'screen':
             self.pdf_viewer.fit_screen()
 
+    def toggle_pdf_toolbar(self):
+        self.pdf_viewer.is_toolbar_expanded = not self.pdf_viewer.is_toolbar_expanded
+        self.pdf_viewer.toolbar_widget.setVisible(self.pdf_viewer.is_toolbar_expanded)
+        self.btn_toggle_pdf_toolbar.setText("⌃" if self.pdf_viewer.is_toolbar_expanded else "⌄")
+
     def toggle_theme(self):
         self.is_dark_mode = not self.is_dark_mode
         self.btn_theme.setText("☀️" if self.is_dark_mode else "🌙")
@@ -129,8 +142,8 @@ class GradingApp(QWidget):
                 QPushButton#btn_submit:hover {{ background-color: #2ea043; }}
                 QPushButton:disabled {{ background-color: #161b22; color: #484f58; border: 1px solid #21262d; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #58a6ff; padding: 12px; background-color: #161b22; border-radius: 8px; border: 1px solid #30363d; }}
-                QPushButton[class="toolbar-btn"] {{ background-color: #21262d; border: 1px solid #30363d; padding: 5px 10px; }}
-                QPushButton[class="toolbar-btn"]:hover {{ background-color: #30363d; }}
+                QPushButton[class="toolbar-btn"] {{ background-color: #1f6feb; color: white; border: none; padding: 5px 15px; }}
+                QPushButton[class="toolbar-btn"]:hover {{ background-color: #388bfd; }}
             """)
         else:
             self.setStyleSheet(f"""
@@ -144,8 +157,8 @@ class GradingApp(QWidget):
                 QPushButton#btn_submit:hover {{ background-color: #0353a4; }}
                 QPushButton:disabled {{ background-color: #eaeef2; color: #8c959f; border: 1px solid #d0d7de; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #0969da; padding: 12px; background-color: #ffffff; border-radius: 8px; border: 1px solid #d0d7de; }}
-                QPushButton[class="toolbar-btn"] {{ background-color: #ffffff; border: 1px solid #d0d7de; padding: 5px 10px; }}
-                QPushButton[class="toolbar-btn"]:hover {{ background-color: #f3f4f6; }}
+                QPushButton[class="toolbar-btn"] {{ background-color: #0969da; color: white; border: none; padding: 5px 15px; }}
+                QPushButton[class="toolbar-btn"]:hover {{ background-color: #0353a4; }}
             """)
         self.info_label.setObjectName("info_label")
         self.btn_submit.setObjectName("btn_submit")

@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from openpyxl import load_workbook
-from openpyxl.styles import Font, Alignment
+from openpyxl.styles import Font, Alignment, Border, Side
 
 class DataManager:
     def __init__(self):
@@ -58,12 +58,52 @@ class DataManager:
         try:
             wb = load_workbook(self.excel_path)
             ws = wb.active
+            
             vazir_font = Font(name='Vazirmatn')
-            align_left = Alignment(horizontal='left', vertical='center')
-            for row in ws.iter_rows():
-                for cell in row:
-                    cell.font = vazir_font
-                    cell.alignment = align_left
+            vazir_bold = Font(name='Vazirmatn', bold=True)
+            
+            center_align = Alignment(horizontal='center', vertical='center')
+            desc_align = Alignment(horizontal='right', vertical='top', wrap_text=True)
+
+            thick = Side(border_style="thick", color="000000")
+            thin = Side(border_style="thin", color="000000")
+
+            max_r = ws.max_row
+            max_c = ws.max_column
+
+            desc_col_idx = None
+            for c in range(1, max_c + 1):
+                if ws.cell(row=1, column=c).value == 'Description':
+                    desc_col_idx = c
+                    break
+
+            for c in range(1, max_c + 1):
+                col_letter = ws.cell(row=1, column=c).column_letter
+                if c == desc_col_idx:
+                    ws.column_dimensions[col_letter].width = 50
+                elif c in [1, 2, 3]:
+                    ws.column_dimensions[col_letter].width = 18
+                else:
+                    ws.column_dimensions[col_letter].width = 12
+
+            for r in range(1, max_r + 1):
+                for c in range(1, max_c + 1):
+                    cell = ws.cell(row=r, column=c)
+                    
+                    cell.font = vazir_bold if r == 1 else vazir_font
+                    
+                    if c == desc_col_idx and r > 1:
+                        cell.alignment = desc_align
+                    else:
+                        cell.alignment = center_align
+
+                    b_top = thick if r == 1 else thin
+                    b_bottom = thick if r == max_r else thin
+                    b_left = thick if c == 1 else thin
+                    b_right = thick if c == max_c else thin
+                    
+                    cell.border = Border(top=b_top, bottom=b_bottom, left=b_left, right=b_right)
+
             ws.sheet_view.rightToLeft = False
             wb.save(self.excel_path)
         except Exception:

@@ -1,6 +1,6 @@
 import fitz
 from PyQt6.QtWidgets import (QScrollArea, QLabel, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QPushButton, QComboBox, QSpinBox)
+                             QHBoxLayout, QPushButton, QComboBox, QSpinBox, QSizePolicy)
 from PyQt6.QtGui import QImage, QPixmap, QPainter
 from PyQt6.QtCore import Qt
 
@@ -12,13 +12,19 @@ class PDFViewer(QWidget):
         self.total_pages = 0
         self.current_page = 0
         self.current_fit_mode = None
+        self.is_toolbar_expanded = True
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(10)
+        self.layout.setSpacing(5)
 
-        self.toolbar = QHBoxLayout()
-        self.toolbar.addStretch()
+        self.toolbar_widget = QWidget()
+        self.toolbar_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        toolbar_layout = QHBoxLayout(self.toolbar_widget)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setSpacing(10)
+        
+        toolbar_layout.addStretch()
         
         self.view_mode = QComboBox()
         self.view_mode.addItems(["Continuous", "Single Page"])
@@ -45,18 +51,31 @@ class PDFViewer(QWidget):
         self.btn_fit_width.clicked.connect(self.fit_width)
         self.btn_fit_screen.clicked.connect(self.fit_screen)
 
-        controls = [self.view_mode, self.btn_prev_page, self.page_spinbox, self.page_label, self.btn_next_page,
-                    self.btn_zoom_in, self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen]
+        controls = [self.btn_prev_page, self.btn_next_page, self.btn_zoom_in, 
+                    self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen]
         
+        toolbar_layout.addWidget(self.view_mode)
         for widget in controls:
-            if isinstance(widget, QPushButton):
+            if widget in [self.btn_zoom_in, self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen]:
                 widget.setFixedHeight(35)
                 widget.setCursor(Qt.CursorShape.PointingHandCursor)
                 widget.setProperty("class", "toolbar-btn")
-            self.toolbar.addWidget(widget)
+            elif widget in [self.btn_prev_page, self.btn_next_page]:
+                widget.setFixedHeight(35)
+                widget.setCursor(Qt.CursorShape.PointingHandCursor)
+                widget.setProperty("class", "toolbar-btn")
+                
+            if widget == self.btn_next_page:
+                toolbar_layout.addWidget(self.btn_prev_page)
+                toolbar_layout.addWidget(self.page_spinbox)
+                toolbar_layout.addWidget(self.page_label)
+                toolbar_layout.addWidget(self.btn_next_page)
+            elif widget != self.btn_prev_page:
+                toolbar_layout.addWidget(widget)
 
-        self.toolbar.addStretch()
-        self.layout.addLayout(self.toolbar)
+        toolbar_layout.addStretch()
+
+        self.layout.addWidget(self.toolbar_widget)
 
         self.scroll_area = QScrollArea()
         self.pdf_label = QLabel()
