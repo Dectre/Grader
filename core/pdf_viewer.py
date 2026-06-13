@@ -11,12 +11,14 @@ class PDFViewer(QWidget):
         self.scale_factor = 1.0
         self.total_pages = 0
         self.current_page = 0
+        self.current_fit_mode = None
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(10)
 
         self.toolbar = QHBoxLayout()
+        self.toolbar.addStretch()
         
         self.view_mode = QComboBox()
         self.view_mode.addItems(["Continuous", "Single Page"])
@@ -33,10 +35,10 @@ class PDFViewer(QWidget):
         self.btn_next_page.clicked.connect(self.next_page)
         self.page_spinbox.valueChanged.connect(self.go_to_page)
 
-        self.btn_zoom_in = QPushButton("Zoom In")
-        self.btn_zoom_out = QPushButton("Zoom Out")
-        self.btn_fit_width = QPushButton("Fit Width")
-        self.btn_fit_screen = QPushButton("Fit Screen")
+        self.btn_zoom_in = QPushButton("🔍+")
+        self.btn_zoom_out = QPushButton("🔍-")
+        self.btn_fit_width = QPushButton("↔️ Fit Width")
+        self.btn_fit_screen = QPushButton("🖵 Fit Screen")
 
         self.btn_zoom_in.clicked.connect(self.zoom_in)
         self.btn_zoom_out.clicked.connect(self.zoom_out)
@@ -50,6 +52,7 @@ class PDFViewer(QWidget):
             if isinstance(widget, QPushButton):
                 widget.setFixedHeight(35)
                 widget.setCursor(Qt.CursorShape.PointingHandCursor)
+                widget.setProperty("class", "toolbar-btn")
             self.toolbar.addWidget(widget)
 
         self.toolbar.addStretch()
@@ -57,11 +60,18 @@ class PDFViewer(QWidget):
 
         self.scroll_area = QScrollArea()
         self.pdf_label = QLabel()
-        self.pdf_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pdf_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
         self.scroll_area.setWidget(self.pdf_label)
         self.scroll_area.setWidgetResizable(True)
 
         self.layout.addWidget(self.scroll_area)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.current_fit_mode == 'width':
+            self.fit_width()
+        elif self.current_fit_mode == 'screen':
+            self.fit_screen()
 
     def load_pdf(self, path):
         if self.doc:
@@ -70,6 +80,7 @@ class PDFViewer(QWidget):
         self.total_pages = len(self.doc)
         self.current_page = 0
         self.scale_factor = 1.0
+        self.current_fit_mode = None
         self.page_spinbox.setMaximum(self.total_pages)
         self.page_label.setText(f"/ {self.total_pages}")
         self.render_pdf()
@@ -140,32 +151,36 @@ class PDFViewer(QWidget):
         self.pdf_label.setPixmap(combined)
 
     def zoom_in(self):
+        self.current_fit_mode = None
         self.scale_factor *= 1.2
         self.render_pdf()
 
     def zoom_out(self):
+        self.current_fit_mode = None
         self.scale_factor /= 1.2
         self.render_pdf()
 
     def fit_width(self):
         if not self.doc: return
+        self.current_fit_mode = 'width'
         page = self.doc[self.current_page if self.view_mode.currentText() == "Single Page" else 0]
         base_width = page.rect.width
         view_width = self.scroll_area.viewport().width()
         if base_width > 0:
-            self.scale_factor = (view_width - 25) / (base_width * 2)
+            self.scale_factor = (view_width - 30) / (base_width * 2)
         self.render_pdf()
 
     def fit_screen(self):
         if not self.doc: return
+        self.current_fit_mode = 'screen'
         page = self.doc[self.current_page if self.view_mode.currentText() == "Single Page" else 0]
         base_width = page.rect.width
         base_height = page.rect.height
         view_width = self.scroll_area.viewport().width()
         view_height = self.scroll_area.viewport().height()
         if base_width > 0 and base_height > 0:
-            scale_w = (view_width - 25) / (base_width * 2)
-            scale_h = (view_height - 25) / (base_height * 2)
+            scale_w = (view_width - 30) / (base_width * 2)
+            scale_h = (view_height - 30) / (base_height * 2)
             self.scale_factor = min(scale_w, scale_h)
         self.render_pdf()
 

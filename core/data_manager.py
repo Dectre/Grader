@@ -30,15 +30,20 @@ class DataManager:
         if os.path.exists(self.excel_path):
             self.grades_df = pd.read_excel(self.excel_path)
             self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            if 'Description' not in self.grades_df.columns:
+                self.grades_df['Description'] = ""
+            self.grades_df['Description'] = self.grades_df['Description'].astype('object')
         else:
             self.grades_df = pd.DataFrame(columns=cols)
+            self.grades_df['Description'] = self.grades_df['Description'].astype('object')
             new_rows = []
             for _, row in self.students_df.iterrows():
                 if row['نام کاربری'] != 'nan' and bool(row['نام کاربری']):
                     new_rows.append({
                         'First Name': row['نام'],
                         'Last Name': row['نام خانوادگی'],
-                        'Student ID': row['نام کاربری']
+                        'Student ID': row['نام کاربری'],
+                        'Description': ""
                     })
             if new_rows:
                 self.grades_df = pd.concat([self.grades_df, pd.DataFrame(new_rows)], ignore_index=True)
@@ -108,6 +113,6 @@ class DataManager:
             for q in self.questions:
                 self.grades_df.at[row_idx, q] = grades_dict.get(q, 0)
             self.grades_df.at[row_idx, 'Total Score'] = total
-            self.grades_df.at[row_idx, 'Description'] = comments
+            self.grades_df.at[row_idx, 'Description'] = str(comments)
 
             self.export_files()

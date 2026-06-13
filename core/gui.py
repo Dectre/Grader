@@ -25,21 +25,23 @@ class GradingApp(QWidget):
         main_app_layout.setSpacing(10)
 
         top_bar = QHBoxLayout()
-        self.btn_theme = QPushButton("☀️")
-        self.btn_theme.setFixedSize(40, 40)
-        self.btn_theme.setStyleSheet("font-size: 20px; border-radius: 20px;")
-        self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_theme.clicked.connect(self.toggle_theme)
-
+        
         self.btn_toggle_sidebar = QPushButton("☰")
         self.btn_toggle_sidebar.setFixedSize(40, 40)
         self.btn_toggle_sidebar.setStyleSheet("font-size: 20px; border-radius: 6px;")
         self.btn_toggle_sidebar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_sidebar.clicked.connect(self.toggle_sidebar)
 
-        top_bar.addWidget(self.btn_theme)
-        top_bar.addStretch()
+        self.btn_theme = QPushButton("☀️")
+        self.btn_theme.setFixedSize(40, 40)
+        self.btn_theme.setStyleSheet("font-size: 20px; border-radius: 20px;")
+        self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_theme.clicked.connect(self.toggle_theme)
+
         top_bar.addWidget(self.btn_toggle_sidebar)
+        top_bar.addStretch()
+        top_bar.addWidget(self.btn_theme)
+        
         main_app_layout.addLayout(top_bar)
 
         content_layout = QHBoxLayout()
@@ -64,7 +66,7 @@ class GradingApp(QWidget):
             sb.setDecimals(2)
             sb.setFixedHeight(35)
             self.spinboxes[q] = sb
-            form_layout.addRow(QLabel(f"{q} (out of {max_g}):"), sb)
+            form_layout.addRow(QLabel(f"{q} \u200E(out of {max_g}):"), sb)
 
         scroll_form = QScrollArea()
         scroll_form_widget = QWidget()
@@ -103,6 +105,10 @@ class GradingApp(QWidget):
 
     def toggle_sidebar(self):
         self.sidebar.setVisible(not self.sidebar.isVisible())
+        if self.pdf_viewer.current_fit_mode == 'width':
+            self.pdf_viewer.fit_width()
+        elif self.pdf_viewer.current_fit_mode == 'screen':
+            self.pdf_viewer.fit_screen()
 
     def toggle_theme(self):
         self.is_dark_mode = not self.is_dark_mode
@@ -110,31 +116,36 @@ class GradingApp(QWidget):
         self.apply_theme()
 
     def apply_theme(self):
+        font_css = "font-family: 'Inter', 'Vazirmatn';"
         if self.is_dark_mode:
-            self.setStyleSheet("""
-                QWidget { background-color: #0d1117; color: #e6edf3; }
-                QScrollArea { border: 1px solid #30363d; border-radius: 8px; background-color: #161b22; }
-                QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox { background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px; color: #e6edf3; }
-                QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus { border: 2px solid #58a6ff; }
-                QPushButton { background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; font-weight: bold; font-size: 13px; }
-                QPushButton:hover { background-color: #30363d; }
-                QPushButton#btn_submit { background-color: #238636; color: white; border: none; }
-                QPushButton#btn_submit:hover { background-color: #2ea043; }
-                QPushButton:disabled { background-color: #161b22; color: #484f58; border: 1px solid #21262d; }
-                QLabel#info_label { font-size: 15px; font-weight: bold; color: #58a6ff; padding: 12px; background-color: #161b22; border-radius: 8px; border: 1px solid #30363d; }
+            self.setStyleSheet(f"""
+                QWidget {{ {font_css} background-color: #0d1117; color: #e6edf3; }}
+                QScrollArea {{ border: 1px solid #30363d; border-radius: 8px; background-color: #161b22; }}
+                QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox {{ background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px; color: #e6edf3; }}
+                QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid #58a6ff; }}
+                QPushButton {{ background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; font-weight: bold; font-size: 13px; }}
+                QPushButton:hover {{ background-color: #30363d; }}
+                QPushButton#btn_submit {{ background-color: #238636; color: white; border: none; }}
+                QPushButton#btn_submit:hover {{ background-color: #2ea043; }}
+                QPushButton:disabled {{ background-color: #161b22; color: #484f58; border: 1px solid #21262d; }}
+                QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #58a6ff; padding: 12px; background-color: #161b22; border-radius: 8px; border: 1px solid #30363d; }}
+                QPushButton[class="toolbar-btn"] {{ background-color: #21262d; border: 1px solid #30363d; padding: 5px 10px; }}
+                QPushButton[class="toolbar-btn"]:hover {{ background-color: #30363d; }}
             """)
         else:
-            self.setStyleSheet("""
-                QWidget { background-color: #f4f5f7; color: #1f2328; }
-                QScrollArea { border: 1px solid #d0d7de; border-radius: 8px; background-color: #ffffff; }
-                QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox { background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px; }
-                QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus { border: 2px solid #0969da; }
-                QPushButton { background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; border-radius: 6px; font-weight: bold; font-size: 13px; }
-                QPushButton:hover { background-color: #f3f4f6; }
-                QPushButton#btn_submit { background-color: #0969da; color: white; border: none; }
-                QPushButton#btn_submit:hover { background-color: #0353a4; }
-                QPushButton:disabled { background-color: #eaeef2; color: #8c959f; border: 1px solid #d0d7de; }
-                QLabel#info_label { font-size: 15px; font-weight: bold; color: #0969da; padding: 12px; background-color: #ffffff; border-radius: 8px; border: 1px solid #d0d7de; }
+            self.setStyleSheet(f"""
+                QWidget {{ {font_css} background-color: #f4f5f7; color: #1f2328; }}
+                QScrollArea {{ border: 1px solid #d0d7de; border-radius: 8px; background-color: #ffffff; }}
+                QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox {{ background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px; }}
+                QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid #0969da; }}
+                QPushButton {{ background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; border-radius: 6px; font-weight: bold; font-size: 13px; }}
+                QPushButton:hover {{ background-color: #f3f4f6; }}
+                QPushButton#btn_submit {{ background-color: #0969da; color: white; border: none; }}
+                QPushButton#btn_submit:hover {{ background-color: #0353a4; }}
+                QPushButton:disabled {{ background-color: #eaeef2; color: #8c959f; border: 1px solid #d0d7de; }}
+                QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #0969da; padding: 12px; background-color: #ffffff; border-radius: 8px; border: 1px solid #d0d7de; }}
+                QPushButton[class="toolbar-btn"] {{ background-color: #ffffff; border: 1px solid #d0d7de; padding: 5px 10px; }}
+                QPushButton[class="toolbar-btn"]:hover {{ background-color: #f3f4f6; }}
             """)
         self.info_label.setObjectName("info_label")
         self.btn_submit.setObjectName("btn_submit")
