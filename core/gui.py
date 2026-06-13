@@ -14,9 +14,9 @@ class GradingApp(QWidget):
         self.load_student()
 
     def setup_ui(self):
-        self.setWindowTitle("سیستم نمره‌دهی تمرینات")
+        self.setWindowTitle("Assignment Grading System")
         self.resize(1200, 800)
-        self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         main_layout = QHBoxLayout(self)
 
         sidebar = QWidget()
@@ -34,7 +34,7 @@ class GradingApp(QWidget):
             sb.setRange(0, float(max_g))
             sb.setDecimals(2)
             self.spinboxes[q] = sb
-            form_layout.addRow(QLabel(f"{q} (از {max_g}):"), sb)
+            form_layout.addRow(QLabel(f"{q} (out of {max_g}):"), sb)
 
         scroll_form = QScrollArea()
         scroll_form_widget = QWidget()
@@ -43,11 +43,11 @@ class GradingApp(QWidget):
         scroll_form.setWidgetResizable(True)
         sidebar_layout.addWidget(scroll_form)
 
-        sidebar_layout.addWidget(QLabel("توضیحات:"))
+        sidebar_layout.addWidget(QLabel("Description:"))
         self.comments_edit = QTextEdit()
         sidebar_layout.addWidget(self.comments_edit)
 
-        self.submit_btn = QPushButton("ثبت و بعدی")
+        self.submit_btn = QPushButton("Submit & Next")
         self.submit_btn.setStyleSheet("padding: 10px; font-weight: bold;")
         self.submit_btn.clicked.connect(self.submit_grade)
         sidebar_layout.addWidget(self.submit_btn)
@@ -59,13 +59,13 @@ class GradingApp(QWidget):
 
     def load_student(self):
         if self.current_idx >= len(self.dm.students):
-            self.info_label.setText("تمام فایل‌ها بررسی شدند.")
+            self.info_label.setText("All files have been reviewed.")
             self.pdf_viewer.clear()
             self.submit_btn.setEnabled(False)
             return
 
         student = self.dm.students[self.current_idx]
-        self.info_label.setText(f"دانشجو: {student['name']} {student['surname']}\nشماره دانشجویی: {student['id']}")
+        self.info_label.setText(f"Student: {student['name']} {student['surname']}\nID: {student['id']}")
 
         for sb in self.spinboxes.values():
             sb.setValue(0.0)

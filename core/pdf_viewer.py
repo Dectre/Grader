@@ -13,17 +13,20 @@ class PDFViewer(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
 
         self.toolbar = QHBoxLayout()
-        self.btn_zoom_in = QPushButton("زوم +")
-        self.btn_zoom_out = QPushButton("زوم -")
-        self.btn_reset = QPushButton("اندازه اصلی")
+        self.btn_zoom_in = QPushButton("Zoom In")
+        self.btn_zoom_out = QPushButton("Zoom Out")
+        self.btn_reset = QPushButton("Original Size")
+        self.btn_fit_screen = QPushButton("Fit to Screen")
 
         self.btn_zoom_in.clicked.connect(self.zoom_in)
         self.btn_zoom_out.clicked.connect(self.zoom_out)
         self.btn_reset.clicked.connect(self.reset_zoom)
+        self.btn_fit_screen.clicked.connect(self.fit_to_screen)
 
         self.toolbar.addWidget(self.btn_zoom_in)
         self.toolbar.addWidget(self.btn_zoom_out)
         self.toolbar.addWidget(self.btn_reset)
+        self.toolbar.addWidget(self.btn_fit_screen)
         self.toolbar.addStretch()
 
         self.layout.addLayout(self.toolbar)
@@ -82,6 +85,17 @@ class PDFViewer(QWidget):
     def reset_zoom(self):
         self.scale_factor = 1.0
         self.render_pdf()
+
+    def fit_to_screen(self):
+        if not self.current_pdf_path:
+            return
+        doc = fitz.open(self.current_pdf_path)
+        if len(doc) > 0:
+            base_width = doc[0].rect.width
+            view_width = self.scroll_area.viewport().width()
+            if base_width > 0:
+                self.scale_factor = (view_width - 25) / (base_width * 2)
+            self.render_pdf()
 
     def clear(self):
         self.current_pdf_path = None

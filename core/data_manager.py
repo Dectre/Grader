@@ -24,7 +24,7 @@ class DataManager:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
         if not os.path.exists(self.excel_path):
-            cols = ['نام', 'نام خانوادگی', 'شماره دانشجویی'] + self.questions + ['مجموع', 'توضیحات']
+            cols = ['First Name', 'Last Name', 'Student ID'] + self.questions + ['Total Score', 'Description']
             df = pd.DataFrame(columns=cols)
             df.to_excel(self.excel_path, index=False)
             self.prefill_excel_students()
@@ -44,12 +44,12 @@ class DataManager:
         wb = load_workbook(self.excel_path)
         ws = wb.active
         vazir_font = Font(name='Vazirmatn')
-        align_right = Alignment(horizontal='right', vertical='center')
+        align_left = Alignment(horizontal='left', vertical='center')
         for row in ws.iter_rows():
             for cell in row:
                 cell.font = vazir_font
-                cell.alignment = align_right
-        ws.sheet_view.rightToLeft = True
+                cell.alignment = align_left
+        ws.sheet_view.rightToLeft = False
         wb.save(self.excel_path)
 
     def get_matched_students(self):
