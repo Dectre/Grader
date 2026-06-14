@@ -9,6 +9,7 @@ class PDFViewer(QWidget):
         super().__init__()
         self.doc = None
         self.scale_factor = 1.0
+        self.rotation_angle = 0
         self.total_pages = 0
         self.current_page = 0
         self.current_fit_mode = None
@@ -45,22 +46,24 @@ class PDFViewer(QWidget):
 
         self.btn_zoom_in = QPushButton("🔍+")
         self.btn_zoom_out = QPushButton("🔍-")
+        self.btn_rotate = QPushButton("↻ Rotate")
         self.btn_fit_width = QPushButton("↔️ Fit Width")
         self.btn_fit_screen = QPushButton("🖵 Fit Screen")
         self.btn_change_file = QPushButton("📁 Change File")
 
         self.btn_zoom_in.clicked.connect(self.zoom_in)
         self.btn_zoom_out.clicked.connect(self.zoom_out)
+        self.btn_rotate.clicked.connect(self.rotate_pdf)
         self.btn_fit_width.clicked.connect(self.fit_width)
         self.btn_fit_screen.clicked.connect(self.fit_screen)
         self.btn_change_file.clicked.connect(self.trigger_change_file)
 
         self.controls = [self.btn_prev_page, self.btn_next_page, self.btn_zoom_in, 
-                         self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen, self.btn_change_file]
+                         self.btn_zoom_out, self.btn_rotate, self.btn_fit_width, self.btn_fit_screen, self.btn_change_file]
         
         toolbar_layout.addWidget(self.view_mode)
         for widget in self.controls:
-            if widget in [self.btn_zoom_in, self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen, self.btn_change_file]:
+            if widget in [self.btn_zoom_in, self.btn_zoom_out, self.btn_rotate, self.btn_fit_width, self.btn_fit_screen, self.btn_change_file]:
                 widget.setFixedHeight(35)
                 widget.setCursor(Qt.CursorShape.PointingHandCursor)
                 widget.setProperty("class", "toolbar-btn")
@@ -167,6 +170,7 @@ class PDFViewer(QWidget):
         self.total_pages = len(self.doc)
         self.current_page = 0
         self.scale_factor = 1.0
+        self.rotation_angle = 0
         self.current_fit_mode = 'width'
         self.page_spinbox.setMaximum(self.total_pages)
         self.page_label.setText(f"/ {self.total_pages}")
@@ -200,6 +204,15 @@ class PDFViewer(QWidget):
             self.current_page += 1
             self.render_pdf()
 
+    def rotate_pdf(self):
+        self.rotation_angle = (self.rotation_angle + 90) % 360
+        if self.current_fit_mode == 'width':
+            self.fit_width()
+        elif self.current_fit_mode == 'screen':
+            self.fit_screen()
+        else:
+            self.render_pdf()
+
     def render_pdf(self):
         if not self.doc:
             return
@@ -207,7 +220,7 @@ class PDFViewer(QWidget):
         self.update_ui_states()
 
         images = []
-        mat = fitz.Matrix(2 * self.scale_factor, 2 * self.scale_factor)
+        mat = fitz.Matrix(2 * self.scale_factor, 2 * self.scale_factor) * fitz.Matrix(self.rotation_angle)
 
         if self.view_mode.currentText() == "Continuous":
             pages = range(self.total_pages)
@@ -251,7 +264,12 @@ class PDFViewer(QWidget):
         if not self.doc: return
         self.current_fit_mode = 'width'
         page = self.doc[self.current_page if self.view_mode.currentText() == "Single Page" else 0]
-        base_width = page.rect.width
+        
+        if self.rotation_angle in [90, 270]:
+            base_width = page.rect.height
+        else:
+            base_width = page.rect.width
+            
         view_width = self.scroll_area.viewport().width()
         if base_width > 0:
             self.scale_factor = (view_width - 30) / (base_width * 2)
@@ -261,8 +279,14 @@ class PDFViewer(QWidget):
         if not self.doc: return
         self.current_fit_mode = 'screen'
         page = self.doc[self.current_page if self.view_mode.currentText() == "Single Page" else 0]
-        base_width = page.rect.width
-        base_height = page.rect.height
+        
+        if self.rotation_angle in [90, 270]:
+            base_width = page.rect.height
+            base_height = page.rect.width
+        else:
+            base_width = page.rect.width
+            base_height = page.rect.height
+            
         view_width = self.scroll_area.viewport().width()
         view_height = self.scroll_area.viewport().height()
         if base_width > 0 and base_height > 0:
