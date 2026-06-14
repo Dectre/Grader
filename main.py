@@ -27,7 +27,7 @@ def main():
 
     dm = DataManager()
     window = GradingApp(dm)
-    window.show()
+    window.showMaximized()
     sys.exit(app.exec())
 
 if __name__ == "__main__":

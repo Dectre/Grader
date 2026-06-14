@@ -219,5 +219,6 @@ __marimo__/
 prompt.md
 Data/tempstudents.csv
 PDFs
-output/grades.xlsx
+output/
 Data/students.csv
+error_log.txt

@@ -1,4 +1,4 @@
-# Homework Grading System (Moodle Grader)
+# Homework Grading System
 
 A comprehensive desktop application designed to streamline and accelerate the grading process for assignments and exams. This system is specifically tailored to process, manage, and grade files exported and downloaded from Moodle systems, eliminating the need to manually open files and record grades in separate spreadsheets.
 

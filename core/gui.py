@@ -163,17 +163,40 @@ class GradingApp(QWidget):
         main_app_layout.addLayout(content_layout)
 
     def populate_student_dropdown(self):
+        current_index = self.student_combo.currentIndex()
         self.student_combo.blockSignals(True)
         self.student_combo.clear()
         search_terms = []
         for idx, s in enumerate(self.dm.students):
-            status_icon = "✅" if s['pdf'] else "❌"
-            display_text = f"{status_icon} {s['name']} {s['surname']}"
+            file_icon = "✅" if s['pdf'] else "❌"
+            
+            is_sub = self.dm.is_submitted(s['id'])
+            saved_grades, saved_desc = self.dm.get_saved_data(s['id'])
+            
+            changed = False
+            if s['id'] in self.session_edits:
+                cg = self.session_edits[s['id']]['grades']
+                cc = self.session_edits[s['id']]['comments']
+                if cg != saved_grades or cc != saved_desc:
+                    changed = True
+                    
+            if changed:
+                status_icon = "🟡 Unsaved"
+            elif is_sub:
+                status_icon = "🟢 Submitted"
+            else:
+                status_icon = "🔴 Not Submitted"
+
+            display_text = f"{file_icon} | {status_icon} | {s['name']} {s['surname']}"
             self.student_combo.addItem(display_text, userData=idx)
             search_terms.append(f"{s['name']} {s['surname']} - {s['id']}")
             
         self.search_model = QStringListModel(search_terms)
         self.search_completer.setModel(self.search_model)
+        
+        if 0 <= current_index < self.student_combo.count():
+            self.student_combo.setCurrentIndex(current_index)
+            
         self.student_combo.blockSignals(False)
 
     def on_dropdown_changed(self, index):
@@ -252,15 +275,26 @@ class GradingApp(QWidget):
         if changed:
             status = "Unsaved Changes"
             color = "#dbab09" if self.is_dark_mode else "#b08800"
+            status_icon = "🟡 Unsaved"
         elif is_sub:
             status = "Submitted"
             color = "#3fb950" if self.is_dark_mode else "#28a745"
+            status_icon = "🟢 Submitted"
         else:
             status = "Not Submitted Yet"
             color = "#ff7b72" if self.is_dark_mode else "#d73a49"
+            status_icon = "🔴 Not Submitted"
             
         self.status_label.setText(f"Status: {status}")
         self.status_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {color};")
+        
+        s = self.dm.students[self.current_idx]
+        file_icon = "✅" if s['pdf'] else "❌"
+        display_text = f"{file_icon} | {status_icon} | {s['name']} {s['surname']}"
+        
+        self.student_combo.blockSignals(True)
+        self.student_combo.setItemText(self.current_idx, display_text)
+        self.student_combo.blockSignals(False)
 
     def toggle_sidebar(self):
         self.sidebar.setVisible(not self.sidebar.isVisible())
@@ -404,6 +438,7 @@ class GradingApp(QWidget):
         try:
             self.dm.save_grade(student['id'], grades, total, comments)
             self.session_edits.pop(student['id'], None)
+            self.populate_student_dropdown()
             self.update_status_label()
             self.btn_submit.setText("Successfully submitted!")
             self.btn_submit.setStyleSheet("background-color: #238636; color: white; border: none; font-weight: bold; border-radius: 6px;")

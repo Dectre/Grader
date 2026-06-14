@@ -140,10 +140,10 @@ class PDFViewer(QWidget):
         self.total_pages = len(self.doc)
         self.current_page = 0
         self.scale_factor = 1.0
-        self.current_fit_mode = None
+        self.current_fit_mode = 'width'
         self.page_spinbox.setMaximum(self.total_pages)
         self.page_label.setText(f"/ {self.total_pages}")
-        self.render_pdf()
+        self.fit_width()
 
     def update_ui_states(self):
         is_single = self.view_mode.currentText() == "Single Page"
