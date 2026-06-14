@@ -34,7 +34,17 @@ class DataManager:
                 self.grades_df['_Submitted'] = False
         elif os.path.exists(self.excel_path):
             df_temp = pd.read_excel(self.excel_path)
-            df_temp = df_temp[~df_temp['First Name'].isin(['Mean', 'Median', 'Max', 'Min'])]
+            
+            c_names = list(df_temp.columns)
+            if len(c_names) >= 3:
+                c_names[0] = 'First Name'
+                c_names[1] = 'Last Name'
+                c_names[2] = 'Student ID'
+                df_temp.columns = c_names
+            
+            df_temp = df_temp[~df_temp['First Name'].isin(['Mean', 'Median', 'Max', 'Min', 'First Name'])]
+            df_temp = df_temp.dropna(subset=['Student ID'])
+            
             self.grades_df = df_temp
             self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             self.grades_df['_Submitted'] = False
@@ -74,7 +84,7 @@ class DataManager:
             wb = load_workbook(self.excel_path)
             ws = wb.active
             
-            ws.insert_rows(2, 4)
+            ws.insert_rows(2, 5)
             
             vazir_font = Font(name='Vazirmatn')
             vazir_bold = Font(name='Vazirmatn', bold=True)
@@ -91,6 +101,14 @@ class DataManager:
             desc_col_idx = None
             total_col_idx = None
             q_col_indices = []
+            
+            ws.cell(row=1, column=1).value = ""
+            ws.cell(row=1, column=2).value = ""
+            ws.cell(row=1, column=3).value = ""
+            
+            ws.cell(row=6, column=1).value = "First Name"
+            ws.cell(row=6, column=2).value = "Last Name"
+            ws.cell(row=6, column=3).value = "Student ID"
             
             for c in range(1, max_c + 1):
                 val = ws.cell(row=1, column=c).value
@@ -135,22 +153,36 @@ class DataManager:
                 for c in range(1, max_c + 1):
                     cell = ws.cell(row=r, column=c)
                     
-                    if r <= 5:
+                    if r <= 6:
                         cell.font = vazir_bold
                     else:
                         cell.font = vazir_font
                     
-                    if c == desc_col_idx and r > 5:
+                    if c == desc_col_idx and r > 6:
                         cell.alignment = desc_align
                     else:
                         cell.alignment = center_align
 
-                    b_top_side = thick if r in [1, 2, 6] else thin
-                    b_bot_side = thick if r in [1, 5, max_r] else thin
-                    b_left_side = thick if c in [1, 4] else thin
-                    b_right_side = thick if c in [3, max_c] else thin
+                    b_top = thin; b_bot = thin; b_left = thin; b_right = thin
                     
-                    cell.border = Border(top=b_top_side, bottom=b_bot_side, left=b_left_side, right=b_right_side)
+                    if r == 1:
+                        b_top = thick
+                        b_bot = thick
+                    if r == 2: b_top = thick
+                    if r == 6:
+                        b_top = thick
+                        b_bot = thick
+                    if r == 7: b_top = thick
+                    if r == max_r: b_bot = thick
+                    
+                    if c == 1: b_left = thick
+                    if c == 3: b_right = thick
+                    if c == 4: b_left = thick
+                    if c == max_c: b_right = thick
+                    
+                    cell.border = Border(top=b_top, bottom=b_bot, left=b_left, right=b_right)
+
+            ws.freeze_panes = 'D2'
 
             ws.sheet_view.rightToLeft = False
             wb.save(self.excel_path)
@@ -173,7 +205,7 @@ class DataManager:
                 'surname': last_name,
                 'id': student_id,
                 'pdf': pdf_path
-            })
+                })
         return students_list
 
     def find_pdf(self, first_name, last_name):
