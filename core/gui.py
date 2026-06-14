@@ -103,8 +103,12 @@ class GradingApp(QWidget):
         self.info_label.setWordWrap(True)
         sidebar_layout.addWidget(self.info_label)
         
+        status_score_layout = QHBoxLayout()
         self.status_label = QLabel("Status: Not Submitted Yet")
-        sidebar_layout.addWidget(self.status_label)
+        self.total_score_label = QLabel("Current Total: 0.00")
+        status_score_layout.addWidget(self.status_label)
+        status_score_layout.addWidget(self.total_score_label)
+        sidebar_layout.addLayout(status_score_layout)
 
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
@@ -288,6 +292,9 @@ class GradingApp(QWidget):
         self.status_label.setText(f"Status: {status}")
         self.status_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {color};")
         
+        total_score = sum(current_grades.values())
+        self.total_score_label.setText(f"Current Total: {total_score:.2f}")
+        
         s = self.dm.students[self.current_idx]
         file_icon = "✅" if s['pdf'] else "❌"
         display_text = f"{file_icon} | {status_icon} | {s['name']} {s['surname']}"
@@ -332,6 +339,7 @@ class GradingApp(QWidget):
                 QPushButton#btn_clear:hover {{ background-color: #da3633; color: white; border: none; }}
                 QPushButton:disabled {{ background-color: #161b22; color: #484f58; border: 1px solid #21262d; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #58a6ff; padding: 12px; background-color: #161b22; border-radius: 8px; border: 1px solid #30363d; }}
+                QLabel#total_score_label {{ font-size: 14px; font-weight: bold; color: #58a6ff; }}
                 QLabel[class="no-file-lbl"] {{ font-size: 18px; font-weight: bold; color: #8b949e; }}
                 QPushButton[class="toolbar-btn"] {{ background-color: #1f6feb; color: white; border: none; padding: 5px 15px; }}
                 QPushButton[class="toolbar-btn"]:hover {{ background-color: #388bfd; }}
@@ -353,6 +361,7 @@ class GradingApp(QWidget):
                 QPushButton#btn_clear:hover {{ background-color: #cf222e; color: white; border: none; }}
                 QPushButton:disabled {{ background-color: #eaeef2; color: #8c959f; border: 1px solid #d0d7de; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #0969da; padding: 12px; background-color: #ffffff; border-radius: 8px; border: 1px solid #d0d7de; }}
+                QLabel#total_score_label {{ font-size: 14px; font-weight: bold; color: #0969da; }}
                 QLabel[class="no-file-lbl"] {{ font-size: 18px; font-weight: bold; color: #57606a; }}
                 QPushButton[class="toolbar-btn"] {{ background-color: #0969da; color: white; border: none; padding: 5px 15px; }}
                 QPushButton[class="toolbar-btn"]:hover {{ background-color: #0353a4; }}
@@ -361,6 +370,7 @@ class GradingApp(QWidget):
         self.info_label.setObjectName("info_label")
         self.btn_submit.setObjectName("btn_submit")
         self.btn_clear.setObjectName("btn_clear")
+        self.total_score_label.setObjectName("total_score_label")
 
     def load_student(self):
         if not self.dm.students:
