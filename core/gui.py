@@ -4,7 +4,7 @@ import logging
 import traceback
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QScrollArea, QDoubleSpinBox, QTextEdit, QPushButton,
-                             QFormLayout, QFileDialog, QComboBox)
+                             QFormLayout, QFileDialog, QComboBox, QLineEdit)
 from PyQt6.QtCore import Qt, QTimer
 from core.pdf_viewer import PDFViewer
 
@@ -50,6 +50,19 @@ class GradingApp(QWidget):
         self.btn_toggle_pdf_toolbar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_pdf_toolbar.clicked.connect(self.toggle_pdf_toolbar)
 
+        self.btn_search = QPushButton("🔍")
+        self.btn_search.setFixedSize(35, 35)
+        self.btn_search.setStyleSheet("font-size: 16px; border-radius: 6px;")
+        self.btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_search.clicked.connect(self.toggle_search)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search Name or ID... (Press Enter)")
+        self.search_input.setFixedHeight(35)
+        self.search_input.setFixedWidth(250)
+        self.search_input.setVisible(False)
+        self.search_input.returnPressed.connect(self.execute_search)
+
         self.btn_theme = QPushButton("☀️")
         self.btn_theme.setFixedSize(35, 35)
         self.btn_theme.setStyleSheet("font-size: 18px; border-radius: 17px;")
@@ -58,6 +71,8 @@ class GradingApp(QWidget):
 
         top_bar.addWidget(self.btn_toggle_sidebar)
         top_bar.addWidget(self.btn_toggle_pdf_toolbar)
+        top_bar.addWidget(self.btn_search)
+        top_bar.addWidget(self.search_input)
         top_bar.addStretch()
         top_bar.addWidget(self.btn_theme)
         
@@ -108,10 +123,18 @@ class GradingApp(QWidget):
         self.comments_edit.textChanged.connect(self.on_input_changed)
         sidebar_layout.addWidget(self.comments_edit)
 
+        submit_layout = QHBoxLayout()
+        self.btn_clear = QPushButton("Clear")
+        self.btn_clear.setFixedHeight(45)
+        self.btn_clear.clicked.connect(self.clear_inputs)
+        
         self.btn_submit = QPushButton("Submit")
         self.btn_submit.setFixedHeight(45)
         self.btn_submit.clicked.connect(self.submit_grade)
-        sidebar_layout.addWidget(self.btn_submit)
+        
+        submit_layout.addWidget(self.btn_clear)
+        submit_layout.addWidget(self.btn_submit)
+        sidebar_layout.addLayout(submit_layout)
 
         nav_layout = QHBoxLayout()
         self.btn_prev = QPushButton("Previous")
@@ -145,6 +168,35 @@ class GradingApp(QWidget):
         if not self.is_loading and index >= 0:
             self.current_idx = index
             self.load_student()
+
+    def toggle_search(self):
+        is_visible = self.search_input.isVisible()
+        self.search_input.setVisible(not is_visible)
+        if not is_visible:
+            self.search_input.setFocus()
+            self.search_input.selectAll()
+
+    def execute_search(self):
+        query = self.search_input.text().strip().lower()
+        if not query:
+            return
+            
+        for idx, s in enumerate(self.dm.students):
+            if query in s['id'].lower() or query in s['name'].lower() or query in s['surname'].lower():
+                self.student_combo.setCurrentIndex(idx)
+                return
+
+    def clear_inputs(self):
+        if not self.dm.students:
+            return
+        
+        self.is_loading = True
+        for sb in self.spinboxes.values():
+            if sb.isEnabled():
+                sb.setValue(0.0)
+        self.comments_edit.clear()
+        self.is_loading = False
+        self.on_input_changed()
 
     def on_input_changed(self):
         if self.is_loading or not self.dm.students:
@@ -210,12 +262,16 @@ class GradingApp(QWidget):
             self.setStyleSheet(f"""
                 QWidget {{ {font_css} background-color: #0d1117; color: #e6edf3; }}
                 QScrollArea {{ border: 1px solid #30363d; border-radius: 8px; background-color: #161b22; }}
+                QLineEdit {{ background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px; color: #e6edf3; font-size: 13px; }}
+                QLineEdit:focus {{ border: 2px solid #58a6ff; }}
                 QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox {{ background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px; color: #e6edf3; }}
                 QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid #58a6ff; }}
                 QPushButton {{ background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; font-weight: bold; font-size: 13px; }}
                 QPushButton:hover {{ background-color: #30363d; }}
                 QPushButton#btn_submit {{ background-color: #1f6feb; color: white; border: none; }}
                 QPushButton#btn_submit:hover {{ background-color: #388bfd; }}
+                QPushButton#btn_clear {{ background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; }}
+                QPushButton#btn_clear:hover {{ background-color: #da3633; color: white; border: none; }}
                 QPushButton:disabled {{ background-color: #161b22; color: #484f58; border: 1px solid #21262d; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #58a6ff; padding: 12px; background-color: #161b22; border-radius: 8px; border: 1px solid #30363d; }}
                 QLabel[class="no-file-lbl"] {{ font-size: 18px; font-weight: bold; color: #8b949e; }}
@@ -227,12 +283,16 @@ class GradingApp(QWidget):
             self.setStyleSheet(f"""
                 QWidget {{ {font_css} background-color: #f4f5f7; color: #1f2328; }}
                 QScrollArea {{ border: 1px solid #d0d7de; border-radius: 8px; background-color: #ffffff; }}
+                QLineEdit {{ background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px; color: #1f2328; font-size: 13px; }}
+                QLineEdit:focus {{ border: 2px solid #0969da; }}
                 QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox {{ background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px; }}
                 QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid #0969da; }}
                 QPushButton {{ background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; border-radius: 6px; font-weight: bold; font-size: 13px; }}
                 QPushButton:hover {{ background-color: #f3f4f6; }}
                 QPushButton#btn_submit {{ background-color: #0969da; color: white; border: none; }}
                 QPushButton#btn_submit:hover {{ background-color: #0353a4; }}
+                QPushButton#btn_clear {{ background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; }}
+                QPushButton#btn_clear:hover {{ background-color: #cf222e; color: white; border: none; }}
                 QPushButton:disabled {{ background-color: #eaeef2; color: #8c959f; border: 1px solid #d0d7de; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #0969da; padding: 12px; background-color: #ffffff; border-radius: 8px; border: 1px solid #d0d7de; }}
                 QLabel[class="no-file-lbl"] {{ font-size: 18px; font-weight: bold; color: #57606a; }}
@@ -242,6 +302,7 @@ class GradingApp(QWidget):
             """)
         self.info_label.setObjectName("info_label")
         self.btn_submit.setObjectName("btn_submit")
+        self.btn_clear.setObjectName("btn_clear")
 
     def load_student(self):
         if not self.dm.students:
@@ -249,6 +310,7 @@ class GradingApp(QWidget):
             self.btn_submit.setEnabled(False)
             self.btn_prev.setEnabled(False)
             self.btn_next.setEnabled(False)
+            self.btn_clear.setEnabled(False)
             return
 
         self.is_loading = True
@@ -280,6 +342,7 @@ class GradingApp(QWidget):
 
         self.btn_prev.setEnabled(self.current_idx > 0)
         self.btn_next.setEnabled(self.current_idx < len(self.dm.students) - 1)
+        self.btn_clear.setEnabled(student['pdf'] is not None)
         
         self.is_loading = False
         self.update_status_label()

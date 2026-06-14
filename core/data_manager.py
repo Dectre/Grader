@@ -85,10 +85,13 @@ class DataManager:
             max_c = ws.max_column
 
             desc_col_idx = None
+            total_col_idx = None
             for c in range(1, max_c + 1):
-                if ws.cell(row=1, column=c).value == 'Description':
+                val = ws.cell(row=1, column=c).value
+                if val == 'Description':
                     desc_col_idx = c
-                    break
+                elif val == 'Total Score':
+                    total_col_idx = c
 
             for c in range(1, max_c + 1):
                 col_letter = ws.cell(row=1, column=c).column_letter
@@ -116,6 +119,32 @@ class DataManager:
                     b_right = thick if c == max_c else thin
                     
                     cell.border = Border(top=b_top, bottom=b_bottom, left=b_left, right=b_right)
+
+            # --- Calculate and Add Statistics ---
+            if total_col_idx:
+                scores = pd.to_numeric(self.grades_df['Total Score'], errors='coerce').dropna()
+                
+                mean_val = round(scores.mean(), 2) if not scores.empty else 0
+                median_val = round(scores.median(), 2) if not scores.empty else 0
+                max_val = round(scores.max(), 2) if not scores.empty else 0
+                min_val = round(scores.min(), 2) if not scores.empty else 0
+                
+                stat_labels = ["Mean (میانگین):", "Median (میانه):", "Max (بیشترین):", "Min (کمترین):"]
+                stat_values = [mean_val, median_val, max_val, min_val]
+                start_r = max_r + 2
+                
+                for i in range(4):
+                    r = start_r + i
+                    lbl_cell = ws.cell(row=r, column=total_col_idx - 1)
+                    val_cell = ws.cell(row=r, column=total_col_idx)
+                    
+                    lbl_cell.value = stat_labels[i]
+                    val_cell.value = stat_values[i]
+                    
+                    lbl_cell.font = vazir_bold
+                    val_cell.font = vazir_bold
+                    lbl_cell.alignment = Alignment(horizontal='right', vertical='center')
+                    val_cell.alignment = center_align
 
             ws.sheet_view.rightToLeft = False
             wb.save(self.excel_path)
