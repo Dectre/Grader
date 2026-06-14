@@ -7,7 +7,7 @@ class DataManager:
     def __init__(self):
         self.students_df = pd.read_csv(os.path.join("Data", "students.csv"), encoding='utf-8-sig')
         self.students_df['نام کاربری'] = self.students_df['نام کاربری'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-        self.students_df = self.students_df.sort_values(by='نام کاربری')
+        self.students_df = self.students_df.sort_values(by='نام خانوادگی')
 
         self.rubric_df = pd.read_csv(os.path.join("Data", "rubric.csv"), encoding='utf-8-sig')
         self.questions = self.rubric_df['بخش'].tolist()
@@ -47,7 +47,9 @@ class DataManager:
                     })
             if new_rows:
                 self.grades_df = pd.concat([self.grades_df, pd.DataFrame(new_rows)], ignore_index=True)
-            self.export_files()
+                
+        self.grades_df = self.grades_df.sort_values(by='Last Name')
+        self.export_files()
 
     def export_files(self):
         self.grades_df.to_excel(self.excel_path, index=False)

@@ -1,8 +1,13 @@
+import logging
+import traceback
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QScrollArea, QDoubleSpinBox, QTextEdit, QPushButton,
                              QFormLayout)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from core.pdf_viewer import PDFViewer
+
+logging.basicConfig(filename='error_log.txt', level=logging.ERROR, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 class GradingApp(QWidget):
     def __init__(self, data_manager):
@@ -138,8 +143,8 @@ class GradingApp(QWidget):
                 QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid #58a6ff; }}
                 QPushButton {{ background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; font-weight: bold; font-size: 13px; }}
                 QPushButton:hover {{ background-color: #30363d; }}
-                QPushButton#btn_submit {{ background-color: #238636; color: white; border: none; }}
-                QPushButton#btn_submit:hover {{ background-color: #2ea043; }}
+                QPushButton#btn_submit {{ background-color: #1f6feb; color: white; border: none; }}
+                QPushButton#btn_submit:hover {{ background-color: #388bfd; }}
                 QPushButton:disabled {{ background-color: #161b22; color: #484f58; border: 1px solid #21262d; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #58a6ff; padding: 12px; background-color: #161b22; border-radius: 8px; border: 1px solid #30363d; }}
                 QPushButton[class="toolbar-btn"] {{ background-color: #1f6feb; color: white; border: none; padding: 5px 15px; }}
@@ -190,7 +195,20 @@ class GradingApp(QWidget):
         total = sum(grades.values())
         comments = self.comments_edit.toPlainText()
 
-        self.dm.save_grade(student['id'], grades, total, comments)
+        try:
+            self.dm.save_grade(student['id'], grades, total, comments)
+            self.btn_submit.setText("Successfully submitted!")
+            self.btn_submit.setStyleSheet("background-color: #238636; color: white; border: none; font-weight: bold; border-radius: 6px;")
+            QTimer.singleShot(1500, self.reset_submit_btn)
+        except Exception as e:
+            logging.error(f"Error saving grade for student {student['id']}: {str(e)}\n{traceback.format_exc()}")
+            self.btn_submit.setText("Error! Check logs.")
+            self.btn_submit.setStyleSheet("background-color: #da3633; color: white; border: none; font-weight: bold; border-radius: 6px;")
+            QTimer.singleShot(2000, self.reset_submit_btn)
+
+    def reset_submit_btn(self):
+        self.btn_submit.setText("Submit")
+        self.btn_submit.setStyleSheet("")
 
     def go_previous(self):
         if self.current_idx > 0:

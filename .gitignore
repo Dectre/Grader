@@ -217,8 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 prompt.md
-.gitignore
 Data/tempstudents.csv
 PDFs
-Data/students.csv
 output/grades.xlsx
+Data/students.csv
