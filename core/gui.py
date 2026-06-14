@@ -39,7 +39,7 @@ class GradingApp(QWidget):
 
     def setup_ui(self):
         self.setWindowTitle("Assignment Grading System")
-        self.resize(1400, 900)
+        self.resize(1200, 800)
         self.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         
         main_app_layout = QVBoxLayout(self)
@@ -70,7 +70,8 @@ class GradingApp(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search Name or ID...")
         self.search_input.setFixedHeight(35)
-        self.search_input.setFixedWidth(280)
+        self.search_input.setMinimumWidth(200)
+        self.search_input.setMaximumWidth(300)
         self.search_input.setVisible(False)
         
         self.search_completer = QCompleter()
@@ -103,11 +104,10 @@ class GradingApp(QWidget):
         
         main_app_layout.addLayout(top_bar)
 
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(10)
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.setHandleWidth(8)
 
         self.sidebar = QWidget()
-        self.sidebar.setFixedWidth(380)
         sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setSpacing(10)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
@@ -128,7 +128,8 @@ class GradingApp(QWidget):
         status_score_layout.addWidget(self.total_score_label)
         sidebar_layout.addLayout(status_score_layout)
 
-        splitter = QSplitter(Qt.Orientation.Vertical)
+        vertical_splitter = QSplitter(Qt.Orientation.Vertical)
+        vertical_splitter.setHandleWidth(6)
 
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
@@ -166,7 +167,7 @@ class GradingApp(QWidget):
         scroll_form_widget.setLayout(form_layout)
         scroll_form.setWidget(scroll_form_widget)
         scroll_form.setWidgetResizable(True)
-        splitter.addWidget(scroll_form)
+        vertical_splitter.addWidget(scroll_form)
 
         desc_widget = QWidget()
         desc_layout = QVBoxLayout(desc_widget)
@@ -191,11 +192,11 @@ class GradingApp(QWidget):
         self.comments_edit = QTextEdit()
         self.comments_edit.textChanged.connect(self.on_input_changed)
         desc_layout.addWidget(self.comments_edit)
-        splitter.addWidget(desc_widget)
+        vertical_splitter.addWidget(desc_widget)
 
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 1)
-        sidebar_layout.addWidget(splitter)
+        vertical_splitter.setStretchFactor(0, 2)
+        vertical_splitter.setStretchFactor(1, 1)
+        sidebar_layout.addWidget(vertical_splitter)
 
         submit_layout = QHBoxLayout()
         self.btn_clear = QPushButton("Clear")
@@ -222,13 +223,12 @@ class GradingApp(QWidget):
         nav_layout.addWidget(self.btn_next)
         sidebar_layout.addLayout(nav_layout)
 
-        content_layout.addWidget(self.sidebar)
+        self.main_splitter.addWidget(self.sidebar)
 
         self.pdf_viewer = PDFViewer()
-        content_layout.addWidget(self.pdf_viewer)
+        self.main_splitter.addWidget(self.pdf_viewer)
 
         self.stats_sidebar = QWidget()
-        self.stats_sidebar.setFixedWidth(440)
         self.stats_sidebar.setVisible(False)
         stats_layout = QVBoxLayout(self.stats_sidebar)
         stats_layout.setContentsMargins(5, 0, 0, 0)
@@ -238,9 +238,13 @@ class GradingApp(QWidget):
         self.stats_text = QTextEdit()
         self.stats_text.setReadOnly(True)
         stats_layout.addWidget(self.stats_text)
-        content_layout.addWidget(self.stats_sidebar)
+        self.main_splitter.addWidget(self.stats_sidebar)
 
-        main_app_layout.addLayout(content_layout)
+        self.main_splitter.setStretchFactor(0, 20)
+        self.main_splitter.setStretchFactor(1, 60)
+        self.main_splitter.setStretchFactor(2, 20)
+
+        main_app_layout.addWidget(self.main_splitter)
 
     def toggle_question_lock(self, q):
         self.lock_states[q] = not self.lock_states[q]
@@ -259,6 +263,9 @@ class GradingApp(QWidget):
         self.stats_sidebar.setVisible(not is_visible)
         if not is_visible:
             self.update_stats_sidebar()
+            self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.50), int(self.width() * 0.30)])
+        else:
+            self.main_splitter.setSizes([int(self.width() * 0.25), int(self.width() * 0.75), 0])
         QTimer.singleShot(50, self.refresh_pdf_size)
 
     def update_stats_sidebar(self):
@@ -297,19 +304,19 @@ class GradingApp(QWidget):
         header_bg = "#21262d" if self.is_dark_mode else "#f6f8fa"
         
         html = f"""
-        <div style="color: {text_color}; font-size: 13px; font-family: 'Inter', 'Vazirmatn';">
+        <div style="color: {text_color}; font-size: 12px; font-family: 'Inter', 'Vazirmatn';">
             <p><b>Total Students:</b> {total}</p>
             <p><b>Files:</b> {with_pdf} PDFs / {without_pdf} Missing</p>
-            <p><b>Submissions:</b> {submitted} Submitted / {unsaved} Unsaved / {not_sub} Not Submitted</p>
+            <p><b>Submissions:</b> {submitted} Sub / {unsaved} Unsav / {not_sub} Not</p>
             <br>
             <table style="border-collapse: collapse; width: 100%; border: 1px solid {border_color};">
                 <thead>
                     <tr style="background-color: {header_bg}; font-weight: bold; text-align: center;">
-                        <th style="border: 1px solid {border_color}; padding: 6px; text-align: left;">Section</th>
-                        <th style="border: 1px solid {border_color}; padding: 6px;">Mean</th>
-                        <th style="border: 1px solid {border_color}; padding: 6px;">Median</th>
-                        <th style="border: 1px solid {border_color}; padding: 6px;">Max</th>
-                        <th style="border: 1px solid {border_color}; padding: 6px;">Min</th>
+                        <th style="border: 1px solid {border_color}; padding: 4px; text-align: left;">Sec</th>
+                        <th style="border: 1px solid {border_color}; padding: 4px;">Avg</th>
+                        <th style="border: 1px solid {border_color}; padding: 4px;">Med</th>
+                        <th style="border: 1px solid {border_color}; padding: 4px;">Max</th>
+                        <th style="border: 1px solid {border_color}; padding: 4px;">Min</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -329,11 +336,11 @@ class GradingApp(QWidget):
                 title_col = col if col != 'Total Score' else '<b>TOTAL</b>'
                 html += f"""
                     <tr style="text-align: center;">
-                        <td style="border: 1px solid {border_color}; padding: 6px; text-align: left;">{title_col}</td>
-                        <td style="border: 1px solid {border_color}; padding: 6px;">{mean_v}</td>
-                        <td style="border: 1px solid {border_color}; padding: 6px;">{median_v}</td>
-                        <td style="border: 1px solid {border_color}; padding: 6px;">{max_v}</td>
-                        <td style="border: 1px solid {border_color}; padding: 6px;">{min_v}</td>
+                        <td style="border: 1px solid {border_color}; padding: 4px; text-align: left;">{title_col}</td>
+                        <td style="border: 1px solid {border_color}; padding: 4px;">{mean_v}</td>
+                        <td style="border: 1px solid {border_color}; padding: 4px;">{median_v}</td>
+                        <td style="border: 1px solid {border_color}; padding: 4px;">{max_v}</td>
+                        <td style="border: 1px solid {border_color}; padding: 4px;">{min_v}</td>
                     </tr>
                 """
                 
@@ -382,6 +389,11 @@ class GradingApp(QWidget):
         if not self.is_loading and index >= 0:
             self.current_idx = index
             self.load_student()
+
+    def toggle_sidebar(self):
+        is_visible = self.sidebar.isVisible()
+        self.sidebar.setVisible(not is_visible)
+        QTimer.singleShot(50, self.refresh_pdf_size)
 
     def toggle_search(self):
         is_visible = self.search_input.isVisible()
@@ -469,10 +481,6 @@ class GradingApp(QWidget):
         total_score = sum(current_grades.values())
         self.total_score_label.setText(f"Total: {total_score:.2f}")
 
-    def toggle_sidebar(self):
-        self.sidebar.setVisible(not self.sidebar.isVisible())
-        QTimer.singleShot(50, self.refresh_pdf_size)
-
     def toggle_pdf_toolbar(self):
         self.pdf_viewer.is_toolbar_expanded = not self.pdf_viewer.is_toolbar_expanded
         self.pdf_viewer.toolbar_widget.setVisible(self.pdf_viewer.is_toolbar_expanded)
@@ -497,7 +505,7 @@ class GradingApp(QWidget):
             self.setStyleSheet(f"""
                 QWidget {{ {font_css} background-color: #0d1117; color: #e6edf3; }}
                 QScrollArea {{ border: 1px solid #30363d; border-radius: 8px; background-color: #161b22; }}
-                QSplitter::handle {{ background-color: #30363d; height: 4px; }}
+                QSplitter::handle {{ background-color: #30363d; margin: 2px; }}
                 QLineEdit {{ background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px; color: #e6edf3; font-size: 13px; }}
                 QLineEdit:focus {{ border: 2px solid #58a6ff; }}
                 QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox {{ background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px; color: #e6edf3; }}
@@ -520,7 +528,7 @@ class GradingApp(QWidget):
             self.setStyleSheet(f"""
                 QWidget {{ {font_css} background-color: #f4f5f7; color: #1f2328; }}
                 QScrollArea {{ border: 1px solid #d0d7de; border-radius: 8px; background-color: #ffffff; }}
-                QSplitter::handle {{ background-color: #d0d7de; height: 4px; }}
+                QSplitter::handle {{ background-color: #d0d7de; margin: 2px; }}
                 QLineEdit {{ background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px; color: #1f2328; font-size: 13px; }}
                 QLineEdit:focus {{ border: 2px solid #0969da; }}
                 QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox {{ background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px; }}
@@ -624,6 +632,7 @@ class GradingApp(QWidget):
             self.session_edits.pop(student['id'], None)
             self.populate_student_dropdown()
             self.update_status_label()
+            self.update_stats_sidebar()
             self.btn_submit.setText("Successfully submitted!")
             self.btn_submit.setStyleSheet("background-color: #238636; color: white; border: none; font-weight: bold; border-radius: 6px;")
             QTimer.singleShot(1500, self.reset_submit_btn)
