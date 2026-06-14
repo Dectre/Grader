@@ -10,8 +10,8 @@ class DataManager:
         self.students_df = self.students_df.sort_values(by='نام خانوادگی')
 
         self.rubric_df = pd.read_csv(os.path.join("Data", "rubric.csv"), encoding='utf-8-sig')
-        self.questions = self.rubric_df['بخش'].tolist()
-        self.max_grades = self.rubric_df['نمره'].tolist()
+        self.questions = self.rubric_df.iloc[:, 0].astype(str).tolist()
+        self.max_grades = self.rubric_df.iloc[:, 1].tolist()
 
         self.output_dir = "output"
         self.excel_path = os.path.join(self.output_dir, "grades.xlsx")
