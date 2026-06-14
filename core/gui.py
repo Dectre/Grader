@@ -81,7 +81,7 @@ class GradingApp(QWidget):
         self.info_label.setWordWrap(True)
         sidebar_layout.addWidget(self.info_label)
         
-        self.status_label = QLabel("Status: Not Submitted")
+        self.status_label = QLabel("Status: Not Submitted Yet")
         sidebar_layout.addWidget(self.status_label)
 
         form_layout = QFormLayout()
@@ -173,12 +173,15 @@ class GradingApp(QWidget):
         
         changed = (current_grades != saved_grades) or (current_desc != saved_desc)
         
-        if not is_sub:
-            status = "Not Submitted (Editing...)" if changed else "Not Submitted"
-            color = "#d73a49" if not self.is_dark_mode else "#ff7b72"
+        if changed:
+            status = "Unsaved Changes"
+            color = "#dbab09" if self.is_dark_mode else "#b08800"
+        elif is_sub:
+            status = "Submitted"
+            color = "#3fb950" if self.is_dark_mode else "#28a745"
         else:
-            status = "Unsaved Changes" if changed else "Submitted"
-            color = "#dbab09" if changed else ("#28a745" if not self.is_dark_mode else "#3fb950")
+            status = "Not Submitted Yet"
+            color = "#ff7b72" if self.is_dark_mode else "#d73a49"
             
         self.status_label.setText(f"Status: {status}")
         self.status_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {color};")
@@ -288,12 +291,17 @@ class GradingApp(QWidget):
             if not os.path.exists(self.dm.pdf_dir):
                 os.makedirs(self.dm.pdf_dir)
                 
-            if student['pdf']:
-                new_name = os.path.basename(student['pdf'])
-            else:
-                new_name = f"{student['name']}_{student['surname']}_{student['id']}.pdf"
-                
+            moodle_id = "0000000"
+            for filename in os.listdir(self.dm.pdf_dir):
+                if filename.endswith(".pdf"):
+                    parts = filename.split('_')
+                    if len(parts) > 2 and parts[1].isdigit():
+                        moodle_id = parts[1]
+                        break
+
+            new_name = f"{student['name']} {student['surname']}_{moodle_id}_assignsubmission_file_{student['id']}.pdf"
             dest_path = os.path.join(self.dm.pdf_dir, new_name)
+            
             shutil.copy(file_path, dest_path)
             student['pdf'] = dest_path
             
@@ -308,6 +316,7 @@ class GradingApp(QWidget):
 
         try:
             self.dm.save_grade(student['id'], grades, total, comments)
+            self.session_edits.pop(student['id'], None)
             self.update_status_label()
             self.btn_submit.setText("Successfully submitted!")
             self.btn_submit.setStyleSheet("background-color: #238636; color: white; border: none; font-weight: bold; border-radius: 6px;")

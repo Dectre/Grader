@@ -25,40 +25,46 @@ class DataManager:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        cols = ['First Name', 'Last Name', 'Student ID'] + self.questions + ['Total Score', 'Description']
+        cols = ['First Name', 'Last Name', 'Student ID'] + self.questions + ['Total Score', 'Description', '_Submitted']
 
-        if os.path.exists(self.excel_path):
+        if os.path.exists(self.csv_path):
+            self.grades_df = pd.read_csv(self.csv_path, encoding='utf-8-sig')
+            self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            if '_Submitted' not in self.grades_df.columns:
+                self.grades_df['_Submitted'] = False
+        elif os.path.exists(self.excel_path):
             self.grades_df = pd.read_excel(self.excel_path)
             self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-            if 'Description' not in self.grades_df.columns:
-                self.grades_df['Description'] = ""
-            self.grades_df['Description'] = self.grades_df['Description'].astype('object')
-            if '_Submitted' not in self.grades_df.columns:
-                self.grades_df['_Submitted'] = True
+            self.grades_df['_Submitted'] = False
         else:
             self.grades_df = pd.DataFrame(columns=cols)
-            self.grades_df['Description'] = self.grades_df['Description'].astype('object')
-            self.grades_df['_Submitted'] = False
-            new_rows = []
-            for _, row in self.students_df.iterrows():
-                if row['نام کاربری'] != 'nan' and bool(row['نام کاربری']):
-                    new_rows.append({
-                        'First Name': row['نام'],
-                        'Last Name': row['نام خانوادگی'],
-                        'Student ID': row['نام کاربری'],
-                        'Description': "",
-                        '_Submitted': False
-                    })
-            if new_rows:
-                self.grades_df = pd.concat([self.grades_df, pd.DataFrame(new_rows)], ignore_index=True)
-                
+
+        if 'Description' not in self.grades_df.columns:
+            self.grades_df['Description'] = ""
+        self.grades_df['Description'] = self.grades_df['Description'].astype('object')
+
+        existing_ids = self.grades_df['Student ID'].tolist()
+        new_rows = []
+        for _, row in self.students_df.iterrows():
+            sid = str(row['نام کاربری'])
+            if sid != 'nan' and bool(sid) and sid not in existing_ids:
+                new_rows.append({
+                    'First Name': row['نام'],
+                    'Last Name': row['نام خانوادگی'],
+                    'Student ID': sid,
+                    'Description': "",
+                    '_Submitted': False
+                })
+        if new_rows:
+            self.grades_df = pd.concat([self.grades_df, pd.DataFrame(new_rows)], ignore_index=True)
+
         self.grades_df = self.grades_df.sort_values(by='Last Name')
         self.export_files()
 
     def export_files(self):
+        self.grades_df.to_csv(self.csv_path, index=False, encoding='utf-8-sig')
         export_df = self.grades_df.drop(columns=['_Submitted'], errors='ignore')
         export_df.to_excel(self.excel_path, index=False)
-        export_df.to_csv(self.csv_path, index=False, encoding='utf-8-sig')
         self.apply_excel_formatting()
 
     def apply_excel_formatting(self):
@@ -170,6 +176,8 @@ class DataManager:
         idx = self.grades_df.index[self.grades_df['Student ID'] == str(student_id)].tolist()
         if idx:
             val = self.grades_df.iloc[idx[0]].get('_Submitted', False)
+            if pd.isna(val):
+                return False
             return bool(val)
         return False
 
