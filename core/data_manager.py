@@ -33,9 +33,12 @@ class DataManager:
             if 'Description' not in self.grades_df.columns:
                 self.grades_df['Description'] = ""
             self.grades_df['Description'] = self.grades_df['Description'].astype('object')
+            if '_Submitted' not in self.grades_df.columns:
+                self.grades_df['_Submitted'] = True
         else:
             self.grades_df = pd.DataFrame(columns=cols)
             self.grades_df['Description'] = self.grades_df['Description'].astype('object')
+            self.grades_df['_Submitted'] = False
             new_rows = []
             for _, row in self.students_df.iterrows():
                 if row['نام کاربری'] != 'nan' and bool(row['نام کاربری']):
@@ -43,7 +46,8 @@ class DataManager:
                         'First Name': row['نام'],
                         'Last Name': row['نام خانوادگی'],
                         'Student ID': row['نام کاربری'],
-                        'Description': ""
+                        'Description': "",
+                        '_Submitted': False
                     })
             if new_rows:
                 self.grades_df = pd.concat([self.grades_df, pd.DataFrame(new_rows)], ignore_index=True)
@@ -52,8 +56,9 @@ class DataManager:
         self.export_files()
 
     def export_files(self):
-        self.grades_df.to_excel(self.excel_path, index=False)
-        self.grades_df.to_csv(self.csv_path, index=False, encoding='utf-8-sig')
+        export_df = self.grades_df.drop(columns=['_Submitted'], errors='ignore')
+        export_df.to_excel(self.excel_path, index=False)
+        export_df.to_csv(self.csv_path, index=False, encoding='utf-8-sig')
         self.apply_excel_formatting()
 
     def apply_excel_formatting(self):
@@ -118,13 +123,12 @@ class DataManager:
             if student_id == 'nan' or not student_id:
                 continue
             pdf_path = self.find_pdf(student_id)
-            if pdf_path:
-                students_list.append({
-                    'name': row['نام'],
-                    'surname': row['نام خانوادگی'],
-                    'id': student_id,
-                    'pdf': pdf_path
-                })
+            students_list.append({
+                'name': row['نام'],
+                'surname': row['نام خانوادگی'],
+                'id': student_id,
+                'pdf': pdf_path
+            })
         return students_list
 
     def find_pdf(self, student_id):
@@ -147,6 +151,13 @@ class DataManager:
             desc = "" if pd.isna(desc) else str(desc)
             return grades, desc
         return {q: 0.0 for q in self.questions}, ""
+        
+    def is_submitted(self, student_id):
+        idx = self.grades_df.index[self.grades_df['Student ID'] == str(student_id)].tolist()
+        if idx:
+            val = self.grades_df.iloc[idx[0]].get('_Submitted', False)
+            return bool(val)
+        return False
 
     def save_grade(self, student_id, grades_dict, total, comments):
         idx = self.grades_df.index[self.grades_df['Student ID'] == str(student_id)].tolist()
@@ -156,5 +167,6 @@ class DataManager:
                 self.grades_df.at[row_idx, q] = grades_dict.get(q, 0)
             self.grades_df.at[row_idx, 'Total Score'] = total
             self.grades_df.at[row_idx, 'Description'] = str(comments)
+            self.grades_df.at[row_idx, '_Submitted'] = True
 
             self.export_files()

@@ -13,6 +13,7 @@ class PDFViewer(QWidget):
         self.current_page = 0
         self.current_fit_mode = None
         self.is_toolbar_expanded = True
+        self.change_file_callback = None
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -45,18 +46,20 @@ class PDFViewer(QWidget):
         self.btn_zoom_out = QPushButton("🔍-")
         self.btn_fit_width = QPushButton("↔️ Fit Width")
         self.btn_fit_screen = QPushButton("🖵 Fit Screen")
+        self.btn_change_file = QPushButton("📁 Change File")
 
         self.btn_zoom_in.clicked.connect(self.zoom_in)
         self.btn_zoom_out.clicked.connect(self.zoom_out)
         self.btn_fit_width.clicked.connect(self.fit_width)
         self.btn_fit_screen.clicked.connect(self.fit_screen)
+        self.btn_change_file.clicked.connect(self.trigger_change_file)
 
-        controls = [self.btn_prev_page, self.btn_next_page, self.btn_zoom_in, 
-                    self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen]
+        self.controls = [self.btn_prev_page, self.btn_next_page, self.btn_zoom_in, 
+                         self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen, self.btn_change_file]
         
         toolbar_layout.addWidget(self.view_mode)
-        for widget in controls:
-            if widget in [self.btn_zoom_in, self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen]:
+        for widget in self.controls:
+            if widget in [self.btn_zoom_in, self.btn_zoom_out, self.btn_fit_width, self.btn_fit_screen, self.btn_change_file]:
                 widget.setFixedHeight(35)
                 widget.setCursor(Qt.CursorShape.PointingHandCursor)
                 widget.setProperty("class", "toolbar-btn")
@@ -74,7 +77,6 @@ class PDFViewer(QWidget):
                 toolbar_layout.addWidget(widget)
 
         toolbar_layout.addStretch()
-
         self.layout.addWidget(self.toolbar_widget)
 
         self.scroll_area = QScrollArea()
@@ -83,7 +85,29 @@ class PDFViewer(QWidget):
         self.scroll_area.setWidget(self.pdf_label)
         self.scroll_area.setWidgetResizable(True)
 
+        self.empty_widget = QWidget()
+        empty_layout = QVBoxLayout(self.empty_widget)
+        self.lbl_no_file = QLabel("No file uploaded for this student.")
+        self.lbl_no_file.setProperty("class", "no-file-lbl")
+        self.lbl_no_file.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.btn_browse_center = QPushButton("Browse & Upload PDF")
+        self.btn_browse_center.setFixedSize(200, 45)
+        self.btn_browse_center.setProperty("class", "toolbar-btn")
+        self.btn_browse_center.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_browse_center.clicked.connect(self.trigger_change_file)
+        
+        empty_layout.addStretch()
+        empty_layout.addWidget(self.lbl_no_file, alignment=Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(self.btn_browse_center, alignment=Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addStretch()
+
         self.layout.addWidget(self.scroll_area)
+        self.layout.addWidget(self.empty_widget)
+        self.empty_widget.hide()
+
+    def trigger_change_file(self):
+        if self.change_file_callback:
+            self.change_file_callback()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -95,6 +119,23 @@ class PDFViewer(QWidget):
     def load_pdf(self, path):
         if self.doc:
             self.doc.close()
+            self.doc = None
+            
+        if not path:
+            self.scroll_area.hide()
+            self.empty_widget.show()
+            for widget in self.controls:
+                if widget != self.btn_change_file:
+                    widget.setEnabled(False)
+            self.view_mode.setEnabled(False)
+            return
+            
+        self.empty_widget.hide()
+        self.scroll_area.show()
+        for widget in self.controls:
+            widget.setEnabled(True)
+        self.view_mode.setEnabled(True)
+
         self.doc = fitz.open(path)
         self.total_pages = len(self.doc)
         self.current_page = 0
@@ -111,7 +152,7 @@ class PDFViewer(QWidget):
         self.page_spinbox.setVisible(is_single)
         self.page_label.setVisible(is_single)
         
-        if is_single:
+        if is_single and self.doc:
             self.page_spinbox.blockSignals(True)
             self.page_spinbox.setValue(self.current_page + 1)
             self.page_spinbox.blockSignals(False)
