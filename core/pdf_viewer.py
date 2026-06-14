@@ -2,7 +2,7 @@ import fitz
 from PyQt6.QtWidgets import (QScrollArea, QLabel, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QComboBox, QSpinBox, QSizePolicy)
 from PyQt6.QtGui import QImage, QPixmap, QPainter
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QEvent
 
 class PDFViewer(QWidget):
     def __init__(self):
@@ -14,6 +14,7 @@ class PDFViewer(QWidget):
         self.current_fit_mode = None
         self.is_toolbar_expanded = True
         self.change_file_callback = None
+        self.last_mouse_pos = None
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -82,6 +83,9 @@ class PDFViewer(QWidget):
         self.scroll_area = QScrollArea()
         self.pdf_label = QLabel()
         self.pdf_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        self.pdf_label.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.pdf_label.installEventFilter(self)
+        
         self.scroll_area.setWidget(self.pdf_label)
         self.scroll_area.setWidgetResizable(True)
 
@@ -104,6 +108,29 @@ class PDFViewer(QWidget):
         self.layout.addWidget(self.scroll_area)
         self.layout.addWidget(self.empty_widget)
         self.empty_widget.hide()
+
+    def eventFilter(self, source, event):
+        if source == self.pdf_label:
+            if event.type() == QEvent.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self.last_mouse_pos = event.globalPosition().toPoint()
+                    self.pdf_label.setCursor(Qt.CursorShape.ClosedHandCursor)
+                    return True
+            elif event.type() == QEvent.Type.MouseMove:
+                if self.last_mouse_pos is not None:
+                    delta = event.globalPosition().toPoint() - self.last_mouse_pos
+                    h_bar = self.scroll_area.horizontalScrollBar()
+                    v_bar = self.scroll_area.verticalScrollBar()
+                    h_bar.setValue(h_bar.value() - delta.x())
+                    v_bar.setValue(v_bar.value() - delta.y())
+                    self.last_mouse_pos = event.globalPosition().toPoint()
+                    return True
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    self.last_mouse_pos = None
+                    self.pdf_label.setCursor(Qt.CursorShape.OpenHandCursor)
+                    return True
+        return super().eventFilter(source, event)
 
     def trigger_change_file(self):
         if self.change_file_callback:
