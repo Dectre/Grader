@@ -2,7 +2,7 @@ import fitz
 from PyQt6.QtWidgets import (QScrollArea, QLabel, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QComboBox, QSpinBox, QSizePolicy)
 from PyQt6.QtGui import QImage, QPixmap, QPainter
-from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtCore import Qt, QEvent, QTimer
 
 class PDFViewer(QWidget):
     def __init__(self):
@@ -17,6 +17,10 @@ class PDFViewer(QWidget):
         self.change_file_callback = None
         self.last_mouse_pos = None
 
+        self.resize_timer = QTimer()
+        self.resize_timer.setSingleShot(True)
+        self.resize_timer.timeout.connect(self.handle_resize_timeout)
+
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(5)
@@ -25,7 +29,7 @@ class PDFViewer(QWidget):
         self.toolbar_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         toolbar_layout = QHBoxLayout(self.toolbar_widget)
         toolbar_layout.setContentsMargins(0, 0, 0, 0)
-        toolbar_layout.setSpacing(10)
+        toolbar_layout.setSpacing(6)
         
         toolbar_layout.addStretch()
         
@@ -47,9 +51,9 @@ class PDFViewer(QWidget):
         self.btn_zoom_in = QPushButton("🔍+")
         self.btn_zoom_out = QPushButton("🔍-")
         self.btn_rotate = QPushButton("↻ Rotate")
-        self.btn_fit_width = QPushButton("↔️ Fit Width")
-        self.btn_fit_screen = QPushButton("🖵 Fit Screen")
-        self.btn_change_file = QPushButton("📁 Change File")
+        self.btn_fit_width = QPushButton("↔️ Width")
+        self.btn_fit_screen = QPushButton("🖵 Screen")
+        self.btn_change_file = QPushButton("📁 Change")
 
         self.btn_zoom_in.clicked.connect(self.zoom_in)
         self.btn_zoom_out.clicked.connect(self.zoom_out)
@@ -141,6 +145,9 @@ class PDFViewer(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self.resize_timer.start(150)
+
+    def handle_resize_timeout(self):
         if self.current_fit_mode == 'width':
             self.fit_width()
         elif self.current_fit_mode == 'screen':

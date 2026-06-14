@@ -50,24 +50,25 @@ class GradingApp(QWidget):
         top_bar.setContentsMargins(0, 0, 0, 0)
         
         self.btn_toggle_sidebar = QPushButton("☰")
+        self.btn_toggle_sidebar.setObjectName("btn_toggle_sidebar")
         self.btn_toggle_sidebar.setFixedSize(35, 35)
-        self.btn_toggle_sidebar.setStyleSheet("font-size: 18px; border-radius: 6px;")
         self.btn_toggle_sidebar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_sidebar.clicked.connect(self.toggle_sidebar)
 
         self.btn_toggle_pdf_toolbar = QPushButton("⌃")
+        self.btn_toggle_pdf_toolbar.setObjectName("btn_toggle_pdf_toolbar")
         self.btn_toggle_pdf_toolbar.setFixedSize(35, 35)
-        self.btn_toggle_pdf_toolbar.setStyleSheet("font-size: 18px; border-radius: 6px;")
         self.btn_toggle_pdf_toolbar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_pdf_toolbar.clicked.connect(self.toggle_pdf_toolbar)
 
         self.btn_search = QPushButton("🔍")
+        self.btn_search.setObjectName("btn_search")
         self.btn_search.setFixedSize(35, 35)
-        self.btn_search.setStyleSheet("font-size: 16px; border-radius: 6px;")
         self.btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_search.clicked.connect(self.toggle_search)
 
         self.search_input = QLineEdit()
+        self.search_input.setObjectName("search_input")
         self.search_input.setPlaceholderText("Search Name or ID...")
         self.search_input.setFixedHeight(35)
         self.search_input.setMinimumWidth(200)
@@ -83,14 +84,14 @@ class GradingApp(QWidget):
         self.search_input.returnPressed.connect(self.execute_search)
 
         self.btn_toggle_stats = QPushButton("📊")
+        self.btn_toggle_stats.setObjectName("btn_toggle_stats")
         self.btn_toggle_stats.setFixedSize(35, 35)
-        self.btn_toggle_stats.setStyleSheet("font-size: 18px; border-radius: 6px;")
         self.btn_toggle_stats.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_stats.clicked.connect(self.toggle_stats_sidebar)
 
         self.btn_theme = QPushButton("☀️")
+        self.btn_theme.setObjectName("btn_theme")
         self.btn_theme.setFixedSize(35, 35)
-        self.btn_theme.setStyleSheet("font-size: 18px; border-radius: 17px;")
         self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_theme.clicked.connect(self.toggle_theme)
 
@@ -127,6 +128,13 @@ class GradingApp(QWidget):
         status_score_layout.addWidget(self.status_label)
         status_score_layout.addWidget(self.total_score_label)
         sidebar_layout.addLayout(status_score_layout)
+
+        self.btn_lock_all = QPushButton("🔓 Lock All")
+        self.btn_lock_all.setObjectName("btn_lock_all")
+        self.btn_lock_all.setFixedHeight(35)
+        self.btn_lock_all.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_lock_all.clicked.connect(self.toggle_lock_all)
+        sidebar_layout.addWidget(self.btn_lock_all)
 
         vertical_splitter = QSplitter(Qt.Orientation.Vertical)
         vertical_splitter.setHandleWidth(6)
@@ -200,10 +208,12 @@ class GradingApp(QWidget):
 
         submit_layout = QHBoxLayout()
         self.btn_clear = QPushButton("Clear")
+        self.btn_clear.setObjectName("btn_clear")
         self.btn_clear.setFixedHeight(45)
         self.btn_clear.clicked.connect(self.clear_inputs)
         
         self.btn_submit = QPushButton("Submit")
+        self.btn_submit.setObjectName("btn_submit")
         self.btn_submit.setFixedHeight(45)
         self.btn_submit.clicked.connect(self.submit_grade)
         
@@ -214,6 +224,8 @@ class GradingApp(QWidget):
         nav_layout = QHBoxLayout()
         self.btn_prev = QPushButton("Previous")
         self.btn_next = QPushButton("Next")
+        self.btn_prev.setObjectName("btn_prev")
+        self.btn_next.setObjectName("btn_next")
         self.btn_prev.setFixedHeight(40)
         self.btn_next.setFixedHeight(40)
         self.btn_prev.clicked.connect(self.go_previous)
@@ -252,11 +264,33 @@ class GradingApp(QWidget):
         student = self.dm.students[self.current_idx]
         if student['pdf'] is not None:
             self.spinboxes[q].setReadOnly(self.lock_states[q])
+        self.sync_lock_all_button_text()
 
     def toggle_desc_lock(self):
         self.is_desc_locked = not self.is_desc_locked
         self.btn_lock_desc.setText("🔒" if self.is_desc_locked else "🔓")
         self.comments_edit.setReadOnly(self.is_desc_locked)
+        self.sync_lock_all_button_text()
+
+    def toggle_lock_all(self):
+        all_locked = all(self.lock_states.values()) and self.is_desc_locked
+        target_state = not all_locked
+        
+        for q in self.dm.questions:
+            self.lock_states[q] = target_state
+            self.lock_buttons[q].setText("🔒" if target_state else "🔓")
+            student = self.dm.students[self.current_idx]
+            if student['pdf'] is not None:
+                self.spinboxes[q].setReadOnly(target_state)
+                
+        self.is_desc_locked = target_state
+        self.btn_lock_desc.setText("🔒" if target_state else "🔓")
+        self.comments_edit.setReadOnly(target_state)
+        self.btn_lock_all.setText("🔒 Unlock All" if target_state else "🔓 Lock All")
+
+    def sync_lock_all_button_text(self):
+        all_locked = all(self.lock_states.values()) and self.is_desc_locked
+        self.btn_lock_all.setText("🔒 Unlock All" if all_locked else "🔓 Lock All")
 
     def toggle_stats_sidebar(self):
         is_visible = self.stats_sidebar.isVisible()
@@ -512,10 +546,16 @@ class GradingApp(QWidget):
                 QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid #58a6ff; }}
                 QPushButton {{ background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; font-weight: bold; font-size: 13px; }}
                 QPushButton:hover {{ background-color: #30363d; }}
+                QPushButton#btn_toggle_sidebar, QPushButton#btn_toggle_pdf_toolbar, QPushButton#btn_search, QPushButton#btn_toggle_stats, QPushButton#btn_theme {{ background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; }}
+                QPushButton#btn_toggle_sidebar:hover, QPushButton#btn_toggle_pdf_toolbar:hover, QPushButton#btn_search:hover, QPushButton#btn_toggle_stats:hover, QPushButton#btn_theme:hover {{ background-color: #30363d; color: #58a6ff; }}
                 QPushButton#btn_submit {{ background-color: #1f6feb; color: white; border: none; }}
                 QPushButton#btn_submit:hover {{ background-color: #388bfd; }}
-                QPushButton#btn_clear {{ background-color: #21262d; color: #c9d1d9; border: 1px solid #30363d; }}
-                QPushButton#btn_clear:hover {{ background-color: #da3633; color: white; border: none; }}
+                QPushButton#btn_clear {{ background-color: #21262d; color: #f85149; border: 1px solid #30363d; }}
+                QPushButton#btn_clear:hover {{ background-color: #b62324; color: white; border: none; }}
+                QPushButton#btn_prev, QPushButton#btn_next {{ background-color: #30363d; color: #c9d1d9; border: 1px solid #8b949e; }}
+                QPushButton#btn_prev:hover, QPushButton#btn_next:hover {{ background-color: #484f58; color: #58a6ff; }}
+                QPushButton#btn_lock_all {{ background-color: #21262d; color: #dbab09; border: 1px solid #30363d; }}
+                QPushButton#btn_lock_all:hover {{ background-color: #30363d; }}
                 QPushButton:disabled {{ background-color: #161b22; color: #484f58; border: 1px solid #21262d; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #58a6ff; padding: 12px; background-color: #161b22; border-radius: 8px; border: 1px solid #30363d; }}
                 QLabel#total_score_label {{ font-size: 14px; font-weight: bold; color: #58a6ff; }}
@@ -535,10 +575,16 @@ class GradingApp(QWidget):
                 QDoubleSpinBox:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {{ border: 2px solid #0969da; }}
                 QPushButton {{ background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; border-radius: 6px; font-weight: bold; font-size: 13px; }}
                 QPushButton:hover {{ background-color: #f3f4f6; }}
+                QPushButton#btn_toggle_sidebar, QPushButton#btn_toggle_pdf_toolbar, QPushButton#btn_search, QPushButton#btn_toggle_stats, QPushButton#btn_theme {{ background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; }}
+                QPushButton#btn_toggle_sidebar:hover, QPushButton#btn_toggle_pdf_toolbar:hover, QPushButton#btn_search:hover, QPushButton#btn_toggle_stats:hover, QPushButton#btn_theme:hover {{ background-color: #eaeef2; color: #0969da; }}
                 QPushButton#btn_submit {{ background-color: #0969da; color: white; border: none; }}
                 QPushButton#btn_submit:hover {{ background-color: #0353a4; }}
-                QPushButton#btn_clear {{ background-color: #f6f8fa; color: #24292f; border: 1px solid #d0d7de; }}
-                QPushButton#btn_clear:hover {{ background-color: #cf222e; color: white; border: none; }}
+                QPushButton#btn_clear {{ background-color: #f6f8fa; color: #cf222e; border: 1px solid #d0d7de; }}
+                QPushButton#btn_clear:hover {{ background-color: #a40e26; color: white; border: none; }}
+                QPushButton#btn_prev, QPushButton#btn_next {{ background-color: #eaeef2; color: #24292f; border: 1px solid #d0d7de; }}
+                QPushButton#btn_prev:hover, QPushButton#btn_next:hover {{ background-color: #d0d7de; color: #0969da; }}
+                QPushButton#btn_lock_all {{ background-color: #f6f8fa; color: #b08800; border: 1px solid #d0d7de; }}
+                QPushButton#btn_lock_all:hover {{ background-color: #eaeef2; }}
                 QPushButton:disabled {{ background-color: #eaeef2; color: #8c959f; border: 1px solid #d0d7de; }}
                 QLabel#info_label {{ font-size: 15px; font-weight: bold; color: #0969da; padding: 12px; background-color: #ffffff; border-radius: 8px; border: 1px solid #d0d7de; }}
                 QLabel#total_score_label {{ font-size: 14px; font-weight: bold; color: #0969da; }}
@@ -548,8 +594,6 @@ class GradingApp(QWidget):
                 QPushButton[class="toolbar-btn"]:disabled {{ background-color: #eaeef2; color: #8c959f; border: 1px solid #d0d7de; }}
             """)
         self.info_label.setObjectName("info_label")
-        self.btn_submit.setObjectName("btn_submit")
-        self.btn_clear.setObjectName("btn_clear")
         self.total_score_label.setObjectName("total_score_label")
 
     def load_student(self):
@@ -596,6 +640,7 @@ class GradingApp(QWidget):
         
         self.is_loading = False
         self.update_status_label()
+        self.sync_lock_all_button_text()
 
     def request_change_file(self):
         student = self.dm.students[self.current_idx]
@@ -632,7 +677,6 @@ class GradingApp(QWidget):
             self.session_edits.pop(student['id'], None)
             self.populate_student_dropdown()
             self.update_status_label()
-            self.update_stats_sidebar()
             self.btn_submit.setText("Successfully submitted!")
             self.btn_submit.setStyleSheet("background-color: #238636; color: white; border: none; font-weight: bold; border-radius: 6px;")
             QTimer.singleShot(1500, self.reset_submit_btn)
