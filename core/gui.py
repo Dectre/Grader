@@ -2,14 +2,21 @@ import os
 import shutil
 import logging
 import traceback
+import pandas as pd
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QScrollArea, QDoubleSpinBox, QTextEdit, QPushButton,
-                             QFormLayout, QFileDialog, QComboBox, QLineEdit, QCompleter)
-from PyQt6.QtCore import Qt, QTimer, QStringListModel
+                             QFormLayout, QFileDialog, QComboBox, QLineEdit, QCompleter, QSplitter)
+from PyQt6.QtCore import Qt, QTimer, QStringListModel, QObject, QEvent
 from core.pdf_viewer import PDFViewer
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
+
+class WheelBlocker(QObject):
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Wheel:
+            return True
+        return False
 
 class GradingApp(QWidget):
     def __init__(self, data_manager):
@@ -17,9 +24,13 @@ class GradingApp(QWidget):
         self.dm = data_manager
         self.current_idx = 0
         self.spinboxes = {}
+        self.lock_buttons = {}
+        self.lock_states = {}
         self.is_dark_mode = True
         self.is_loading = False
+        self.is_desc_locked = False
         self.session_edits = {}
+        self.wheel_blocker = WheelBlocker()
         self.setup_ui()
         self.apply_theme()
         self.pdf_viewer.change_file_callback = self.request_change_file
@@ -70,6 +81,12 @@ class GradingApp(QWidget):
         self.search_completer.activated.connect(self.on_search_selected)
         self.search_input.returnPressed.connect(self.execute_search)
 
+        self.btn_toggle_stats = QPushButton("📊")
+        self.btn_toggle_stats.setFixedSize(35, 35)
+        self.btn_toggle_stats.setStyleSheet("font-size: 18px; border-radius: 6px;")
+        self.btn_toggle_stats.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle_stats.clicked.connect(self.toggle_stats_sidebar)
+
         self.btn_theme = QPushButton("☀️")
         self.btn_theme.setFixedSize(35, 35)
         self.btn_theme.setStyleSheet("font-size: 18px; border-radius: 17px;")
@@ -81,6 +98,7 @@ class GradingApp(QWidget):
         top_bar.addWidget(self.btn_search)
         top_bar.addWidget(self.search_input)
         top_bar.addStretch()
+        top_bar.addWidget(self.btn_toggle_stats)
         top_bar.addWidget(self.btn_theme)
         
         main_app_layout.addLayout(top_bar)
@@ -91,7 +109,7 @@ class GradingApp(QWidget):
         self.sidebar = QWidget()
         self.sidebar.setFixedWidth(380)
         sidebar_layout = QVBoxLayout(self.sidebar)
-        sidebar_layout.setSpacing(15)
+        sidebar_layout.setSpacing(10)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
 
         self.student_combo = QComboBox()
@@ -105,34 +123,79 @@ class GradingApp(QWidget):
         
         status_score_layout = QHBoxLayout()
         self.status_label = QLabel("Status: Not Submitted Yet")
-        self.total_score_label = QLabel("Current Total: 0.00")
+        self.total_score_label = QLabel("Total: 0.00")
         status_score_layout.addWidget(self.status_label)
         status_score_layout.addWidget(self.total_score_label)
         sidebar_layout.addLayout(status_score_layout)
+
+        splitter = QSplitter(Qt.Orientation.Vertical)
 
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
         for idx, q in enumerate(self.dm.questions):
             max_g = self.dm.max_grades[idx]
+            
+            row_widget = QWidget()
+            row_container = QHBoxLayout(row_widget)
+            row_container.setContentsMargins(0, 0, 0, 0)
+            row_container.setSpacing(5)
+            
             sb = QDoubleSpinBox()
             sb.setRange(0, float(max_g))
             sb.setDecimals(2)
             sb.setFixedHeight(35)
+            sb.installEventFilter(self.wheel_blocker)
             sb.valueChanged.connect(self.on_input_changed)
             self.spinboxes[q] = sb
-            form_layout.addRow(QLabel(f"{q} \u200E(out of {max_g}):"), sb)
+            
+            btn_q_lock = QPushButton("🔓")
+            btn_q_lock.setFixedSize(30, 35)
+            btn_q_lock.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_q_lock.setStyleSheet("background: transparent; border: none; font-size: 16px;")
+            btn_q_lock.clicked.connect(lambda checked, question=q: self.toggle_question_lock(question))
+            self.lock_buttons[q] = btn_q_lock
+            self.lock_states[q] = False
+            
+            row_container.addWidget(sb)
+            row_container.addWidget(btn_q_lock)
+            
+            form_layout.addRow(QLabel(f"{q} \u200E(out of {max_g}):"), row_widget)
 
         scroll_form = QScrollArea()
         scroll_form_widget = QWidget()
         scroll_form_widget.setLayout(form_layout)
         scroll_form.setWidget(scroll_form_widget)
         scroll_form.setWidgetResizable(True)
-        sidebar_layout.addWidget(scroll_form)
+        splitter.addWidget(scroll_form)
 
-        sidebar_layout.addWidget(QLabel("Description:"))
+        desc_widget = QWidget()
+        desc_layout = QVBoxLayout(desc_widget)
+        desc_layout.setContentsMargins(0, 0, 0, 0)
+        desc_layout.setSpacing(5)
+        
+        desc_header = QWidget()
+        desc_header_layout = QHBoxLayout(desc_header)
+        desc_header_layout.setContentsMargins(0, 0, 0, 0)
+        desc_header_layout.addWidget(QLabel("Description:"))
+        desc_header_layout.addStretch()
+        
+        self.btn_lock_desc = QPushButton("🔓")
+        self.btn_lock_desc.setFixedSize(30, 25)
+        self.btn_lock_desc.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_lock_desc.setStyleSheet("background: transparent; border: none; font-size: 16px;")
+        self.btn_lock_desc.clicked.connect(self.toggle_desc_lock)
+        desc_header_layout.addWidget(self.btn_lock_desc)
+        
+        desc_layout.addWidget(desc_header)
+        
         self.comments_edit = QTextEdit()
         self.comments_edit.textChanged.connect(self.on_input_changed)
-        sidebar_layout.addWidget(self.comments_edit)
+        desc_layout.addWidget(self.comments_edit)
+        splitter.addWidget(desc_widget)
+
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 1)
+        sidebar_layout.addWidget(splitter)
 
         submit_layout = QHBoxLayout()
         self.btn_clear = QPushButton("Clear")
@@ -164,7 +227,118 @@ class GradingApp(QWidget):
         self.pdf_viewer = PDFViewer()
         content_layout.addWidget(self.pdf_viewer)
 
+        self.stats_sidebar = QWidget()
+        self.stats_sidebar.setFixedWidth(440)
+        self.stats_sidebar.setVisible(False)
+        stats_layout = QVBoxLayout(self.stats_sidebar)
+        stats_layout.setContentsMargins(5, 0, 0, 0)
+        stats_title = QLabel("📊 Live Statistics")
+        stats_title.setStyleSheet("font-size: 16px; font-weight: bold; padding: 5px;")
+        stats_layout.addWidget(stats_title)
+        self.stats_text = QTextEdit()
+        self.stats_text.setReadOnly(True)
+        stats_layout.addWidget(self.stats_text)
+        content_layout.addWidget(self.stats_sidebar)
+
         main_app_layout.addLayout(content_layout)
+
+    def toggle_question_lock(self, q):
+        self.lock_states[q] = not self.lock_states[q]
+        self.lock_buttons[q].setText("🔒" if self.lock_states[q] else "🔓")
+        student = self.dm.students[self.current_idx]
+        if student['pdf'] is not None:
+            self.spinboxes[q].setReadOnly(self.lock_states[q])
+
+    def toggle_desc_lock(self):
+        self.is_desc_locked = not self.is_desc_locked
+        self.btn_lock_desc.setText("🔒" if self.is_desc_locked else "🔓")
+        self.comments_edit.setReadOnly(self.is_desc_locked)
+
+    def toggle_stats_sidebar(self):
+        is_visible = self.stats_sidebar.isVisible()
+        self.stats_sidebar.setVisible(not is_visible)
+        if not is_visible:
+            self.update_stats_sidebar()
+        QTimer.singleShot(50, self.refresh_pdf_size)
+
+    def update_stats_sidebar(self):
+        if not self.stats_sidebar.isVisible():
+            return
+            
+        total = len(self.dm.students)
+        with_pdf = sum(1 for s in self.dm.students if s['pdf'])
+        without_pdf = total - with_pdf
+        
+        submitted = 0
+        unsaved = 0
+        not_sub = 0
+        
+        for s in self.dm.students:
+            sid = s['id']
+            is_sub = self.dm.is_submitted(sid)
+            saved_grades, saved_desc = self.dm.get_saved_data(sid)
+            
+            changed = False
+            if sid in self.session_edits:
+                cg = self.session_edits[sid]['grades']
+                cc = self.session_edits[sid]['comments']
+                if cg != saved_grades or cc != saved_desc:
+                    changed = True
+                    
+            if changed:
+                unsaved += 1
+            elif is_sub:
+                submitted += 1
+            else:
+                not_sub += 1
+
+        text_color = "#e6edf3" if self.is_dark_mode else "#1f2328"
+        border_color = "#30363d" if self.is_dark_mode else "#d0d7de"
+        header_bg = "#21262d" if self.is_dark_mode else "#f6f8fa"
+        
+        html = f"""
+        <div style="color: {text_color}; font-size: 13px; font-family: 'Inter', 'Vazirmatn';">
+            <p><b>Total Students:</b> {total}</p>
+            <p><b>Files:</b> {with_pdf} PDFs / {without_pdf} Missing</p>
+            <p><b>Submissions:</b> {submitted} Submitted / {unsaved} Unsaved / {not_sub} Not Submitted</p>
+            <br>
+            <table style="border-collapse: collapse; width: 100%; border: 1px solid {border_color};">
+                <thead>
+                    <tr style="background-color: {header_bg}; font-weight: bold; text-align: center;">
+                        <th style="border: 1px solid {border_color}; padding: 6px; text-align: left;">Section</th>
+                        <th style="border: 1px solid {border_color}; padding: 6px;">Mean</th>
+                        <th style="border: 1px solid {border_color}; padding: 6px;">Median</th>
+                        <th style="border: 1px solid {border_color}; padding: 6px;">Max</th>
+                        <th style="border: 1px solid {border_color}; padding: 6px;">Min</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        
+        df = self.dm.grades_df[self.dm.grades_df['_Submitted'] == True]
+        cols_to_check = self.dm.questions + ['Total Score']
+        
+        for col in cols_to_check:
+            if col in df.columns:
+                scores = pd.to_numeric(df[col], errors='coerce').dropna()
+                mean_v = round(scores.mean(), 2) if not scores.empty else 0
+                median_v = round(scores.median(), 2) if not scores.empty else 0
+                max_v = round(scores.max(), 2) if not scores.empty else 0
+                min_v = round(scores.min(), 2) if not scores.empty else 0
+                
+                title_col = col if col != 'Total Score' else '<b>TOTAL</b>'
+                html += f"""
+                    <tr style="text-align: center;">
+                        <td style="border: 1px solid {border_color}; padding: 6px; text-align: left;">{title_col}</td>
+                        <td style="border: 1px solid {border_color}; padding: 6px;">{mean_v}</td>
+                        <td style="border: 1px solid {border_color}; padding: 6px;">{median_v}</td>
+                        <td style="border: 1px solid {border_color}; padding: 6px;">{max_v}</td>
+                        <td style="border: 1px solid {border_color}; padding: 6px;">{min_v}</td>
+                    </tr>
+                """
+                
+        html += "</tbody></table></div>"
+        self.stats_text.setHtml(html)
 
     def populate_student_dropdown(self):
         current_index = self.student_combo.currentIndex()
@@ -202,6 +376,7 @@ class GradingApp(QWidget):
             self.student_combo.setCurrentIndex(current_index)
             
         self.student_combo.blockSignals(False)
+        self.update_stats_sidebar()
 
     def on_dropdown_changed(self, index):
         if not self.is_loading and index >= 0:
@@ -242,10 +417,11 @@ class GradingApp(QWidget):
             return
         
         self.is_loading = True
-        for sb in self.spinboxes.values():
-            if sb.isEnabled():
+        for q, sb in self.spinboxes.items():
+            if sb.isEnabled() and not self.lock_states.get(q, False):
                 sb.setValue(0.0)
-        self.comments_edit.clear()
+        if not self.is_desc_locked:
+            self.comments_edit.clear()
         self.is_loading = False
         self.on_input_changed()
 
@@ -262,6 +438,7 @@ class GradingApp(QWidget):
             'comments': current_comments
         }
         self.update_status_label()
+        self.populate_student_dropdown()
 
     def update_status_label(self):
         if not self.dm.students:
@@ -279,36 +456,22 @@ class GradingApp(QWidget):
         if changed:
             status = "Unsaved Changes"
             color = "#dbab09" if self.is_dark_mode else "#b08800"
-            status_icon = "🟡 Unsaved"
         elif is_sub:
             status = "Submitted"
             color = "#3fb950" if self.is_dark_mode else "#28a745"
-            status_icon = "🟢 Submitted"
         else:
             status = "Not Submitted Yet"
             color = "#ff7b72" if self.is_dark_mode else "#d73a49"
-            status_icon = "🔴 Not Submitted"
             
         self.status_label.setText(f"Status: {status}")
         self.status_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {color};")
         
         total_score = sum(current_grades.values())
-        self.total_score_label.setText(f"Current Total: {total_score:.2f}")
-        
-        s = self.dm.students[self.current_idx]
-        file_icon = "✅" if s['pdf'] else "❌"
-        display_text = f"{file_icon} | {status_icon} | {s['name']} {s['surname']}"
-        
-        self.student_combo.blockSignals(True)
-        self.student_combo.setItemText(self.current_idx, display_text)
-        self.student_combo.blockSignals(False)
+        self.total_score_label.setText(f"Total: {total_score:.2f}")
 
     def toggle_sidebar(self):
         self.sidebar.setVisible(not self.sidebar.isVisible())
-        if self.pdf_viewer.current_fit_mode == 'width':
-            self.pdf_viewer.fit_width()
-        elif self.pdf_viewer.current_fit_mode == 'screen':
-            self.pdf_viewer.fit_screen()
+        QTimer.singleShot(50, self.refresh_pdf_size)
 
     def toggle_pdf_toolbar(self):
         self.pdf_viewer.is_toolbar_expanded = not self.pdf_viewer.is_toolbar_expanded
@@ -320,6 +483,13 @@ class GradingApp(QWidget):
         self.btn_theme.setText("☀️" if self.is_dark_mode else "🌙")
         self.apply_theme()
         self.update_status_label()
+        self.update_stats_sidebar()
+
+    def refresh_pdf_size(self):
+        if self.pdf_viewer.current_fit_mode == 'width':
+            self.pdf_viewer.fit_width()
+        elif self.pdf_viewer.current_fit_mode == 'screen':
+            self.pdf_viewer.fit_screen()
 
     def apply_theme(self):
         font_css = "font-family: 'Inter', 'Vazirmatn';"
@@ -327,6 +497,7 @@ class GradingApp(QWidget):
             self.setStyleSheet(f"""
                 QWidget {{ {font_css} background-color: #0d1117; color: #e6edf3; }}
                 QScrollArea {{ border: 1px solid #30363d; border-radius: 8px; background-color: #161b22; }}
+                QSplitter::handle {{ background-color: #30363d; height: 4px; }}
                 QLineEdit {{ background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px; color: #e6edf3; font-size: 13px; }}
                 QLineEdit:focus {{ border: 2px solid #58a6ff; }}
                 QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox {{ background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 5px; color: #e6edf3; }}
@@ -349,6 +520,7 @@ class GradingApp(QWidget):
             self.setStyleSheet(f"""
                 QWidget {{ {font_css} background-color: #f4f5f7; color: #1f2328; }}
                 QScrollArea {{ border: 1px solid #d0d7de; border-radius: 8px; background-color: #ffffff; }}
+                QSplitter::handle {{ background-color: #d0d7de; height: 4px; }}
                 QLineEdit {{ background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px; color: #1f2328; font-size: 13px; }}
                 QLineEdit:focus {{ border: 2px solid #0969da; }}
                 QDoubleSpinBox, QTextEdit, QComboBox, QSpinBox {{ background-color: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 5px; }}
@@ -404,8 +576,10 @@ class GradingApp(QWidget):
                 sb.setEnabled(False)
             else:
                 sb.setEnabled(True)
+                sb.setReadOnly(self.lock_states.get(q, False))
                 
         self.comments_edit.setPlainText(comments)
+        self.comments_edit.setReadOnly(self.is_desc_locked)
         self.pdf_viewer.load_pdf(student['pdf'])
 
         self.btn_prev.setEnabled(self.current_idx > 0)

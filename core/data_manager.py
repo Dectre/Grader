@@ -33,7 +33,9 @@ class DataManager:
             if '_Submitted' not in self.grades_df.columns:
                 self.grades_df['_Submitted'] = False
         elif os.path.exists(self.excel_path):
-            self.grades_df = pd.read_excel(self.excel_path)
+            df_temp = pd.read_excel(self.excel_path)
+            df_temp = df_temp[~df_temp['First Name'].isin(['Mean', 'Median', 'Max', 'Min'])]
+            self.grades_df = df_temp
             self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
             self.grades_df['_Submitted'] = False
         else:
@@ -72,6 +74,8 @@ class DataManager:
             wb = load_workbook(self.excel_path)
             ws = wb.active
             
+            ws.insert_rows(2, 4)
+            
             vazir_font = Font(name='Vazirmatn')
             vazir_bold = Font(name='Vazirmatn', bold=True)
             
@@ -86,12 +90,16 @@ class DataManager:
 
             desc_col_idx = None
             total_col_idx = None
+            q_col_indices = []
+            
             for c in range(1, max_c + 1):
                 val = ws.cell(row=1, column=c).value
                 if val == 'Description':
                     desc_col_idx = c
                 elif val == 'Total Score':
                     total_col_idx = c
+                elif val in self.questions:
+                    q_col_indices.append(c)
 
             for c in range(1, max_c + 1):
                 col_letter = ws.cell(row=1, column=c).column_letter
@@ -102,48 +110,47 @@ class DataManager:
                 else:
                     ws.column_dimensions[col_letter].width = 12
 
-            for r in range(1, max_r + 1):
-                for c in range(1, max_c + 1):
-                    cell = ws.cell(row=r, column=c)
-                    
-                    cell.font = vazir_bold if r == 1 else vazir_font
-                    
-                    if c == desc_col_idx and r > 1:
-                        cell.alignment = desc_align
-                    else:
-                        cell.alignment = center_align
+            stat_labels = ["Mean", "Median", "Max", "Min"]
+            for i in range(4):
+                r = i + 2
+                ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
+                cell = ws.cell(row=r, column=1)
+                cell.value = stat_labels[i]
 
-                    b_top = thick if r == 1 else thin
-                    b_bottom = thick if r == max_r else thin
-                    b_left = thick if c == 1 else thin
-                    b_right = thick if c == max_c else thin
-                    
-                    cell.border = Border(top=b_top, bottom=b_bottom, left=b_left, right=b_right)
-
-            if total_col_idx:
-                scores = pd.to_numeric(self.grades_df['Total Score'], errors='coerce').dropna()
-                
+            stat_cols = q_col_indices + ([total_col_idx] if total_col_idx else [])
+            for c in stat_cols:
+                col_name = ws.cell(row=1, column=c).value
+                scores = pd.to_numeric(self.grades_df[col_name], errors='coerce').dropna()
                 mean_val = round(scores.mean(), 2) if not scores.empty else 0
                 median_val = round(scores.median(), 2) if not scores.empty else 0
                 max_val = round(scores.max(), 2) if not scores.empty else 0
                 min_val = round(scores.min(), 2) if not scores.empty else 0
                 
-                stat_labels = ["Mean:", "Median:", "Max:", "Min:"]
-                stat_values = [mean_val, median_val, max_val, min_val]
-                start_r = max_r + 2
-                
+                vals = [mean_val, median_val, max_val, min_val]
                 for i in range(4):
-                    r = start_r + i
-                    lbl_cell = ws.cell(row=r, column=total_col_idx - 1)
-                    val_cell = ws.cell(row=r, column=total_col_idx)
+                    r = i + 2
+                    ws.cell(row=r, column=c).value = vals[i]
+
+            for r in range(1, max_r + 1):
+                for c in range(1, max_c + 1):
+                    cell = ws.cell(row=r, column=c)
                     
-                    lbl_cell.value = stat_labels[i]
-                    val_cell.value = stat_values[i]
+                    if r <= 5:
+                        cell.font = vazir_bold
+                    else:
+                        cell.font = vazir_font
                     
-                    lbl_cell.font = vazir_bold
-                    val_cell.font = vazir_bold
-                    lbl_cell.alignment = Alignment(horizontal='right', vertical='center')
-                    val_cell.alignment = center_align
+                    if c == desc_col_idx and r > 5:
+                        cell.alignment = desc_align
+                    else:
+                        cell.alignment = center_align
+
+                    b_top_side = thick if r in [1, 2, 6] else thin
+                    b_bot_side = thick if r in [1, 5, max_r] else thin
+                    b_left_side = thick if c in [1, 4] else thin
+                    b_right_side = thick if c in [3, max_c] else thin
+                    
+                    cell.border = Border(top=b_top_side, bottom=b_bot_side, left=b_left_side, right=b_right_side)
 
             ws.sheet_view.rightToLeft = False
             wb.save(self.excel_path)
