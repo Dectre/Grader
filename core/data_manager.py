@@ -122,21 +122,35 @@ class DataManager:
             student_id = row['نام کاربری']
             if student_id == 'nan' or not student_id:
                 continue
-            pdf_path = self.find_pdf(student_id)
+            
+            first_name = str(row['نام']).strip()
+            last_name = str(row['نام خانوادگی']).strip()
+            
+            pdf_path = self.find_pdf(first_name, last_name)
             students_list.append({
-                'name': row['نام'],
-                'surname': row['نام خانوادگی'],
+                'name': first_name,
+                'surname': last_name,
                 'id': student_id,
                 'pdf': pdf_path
             })
         return students_list
 
-    def find_pdf(self, student_id):
+    def find_pdf(self, first_name, last_name):
         if not os.path.exists(self.pdf_dir):
             return None
+            
+        first = first_name.replace(" ", "").replace("‌", "")
+        last = last_name.replace(" ", "").replace("‌", "")
+            
         for filename in os.listdir(self.pdf_dir):
-            if str(student_id) in filename and filename.lower().endswith('.pdf'):
+            if not filename.lower().endswith('.pdf'):
+                continue
+                
+            clean_filename = filename.replace(" ", "").replace("‌", "").replace("_", "")
+                
+            if first in clean_filename and last in clean_filename:
                 return os.path.join(self.pdf_dir, filename)
+                
         return None
 
     def get_saved_data(self, student_id):

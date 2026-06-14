@@ -4,7 +4,7 @@ import logging
 import traceback
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QScrollArea, QDoubleSpinBox, QTextEdit, QPushButton,
-                             QFormLayout, QFileDialog)
+                             QFormLayout, QFileDialog, QComboBox)
 from PyQt6.QtCore import Qt, QTimer
 from core.pdf_viewer import PDFViewer
 
@@ -23,6 +23,7 @@ class GradingApp(QWidget):
         self.setup_ui()
         self.apply_theme()
         self.pdf_viewer.change_file_callback = self.request_change_file
+        self.populate_student_dropdown()
         self.load_student()
 
     def setup_ui(self):
@@ -70,6 +71,11 @@ class GradingApp(QWidget):
         sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setSpacing(15)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.student_combo = QComboBox()
+        self.student_combo.setFixedHeight(35)
+        self.student_combo.currentIndexChanged.connect(self.on_dropdown_changed)
+        sidebar_layout.addWidget(self.student_combo)
 
         self.info_label = QLabel()
         self.info_label.setWordWrap(True)
@@ -125,6 +131,20 @@ class GradingApp(QWidget):
         content_layout.addWidget(self.pdf_viewer)
 
         main_app_layout.addLayout(content_layout)
+
+    def populate_student_dropdown(self):
+        self.student_combo.blockSignals(True)
+        self.student_combo.clear()
+        for idx, s in enumerate(self.dm.students):
+            status_icon = "✅" if s['pdf'] else "❌"
+            display_text = f"{status_icon} {s['name']} {s['surname']}"
+            self.student_combo.addItem(display_text, userData=idx)
+        self.student_combo.blockSignals(False)
+
+    def on_dropdown_changed(self, index):
+        if not self.is_loading and index >= 0:
+            self.current_idx = index
+            self.load_student()
 
     def on_input_changed(self):
         if self.is_loading or not self.dm.students:
@@ -230,7 +250,13 @@ class GradingApp(QWidget):
 
         self.is_loading = True
         student = self.dm.students[self.current_idx]
-        self.info_label.setText(f"Student: {student['name']} {student['surname']}\nID: {student['id']}")
+        total_students = len(self.dm.students)
+        
+        self.student_combo.blockSignals(True)
+        self.student_combo.setCurrentIndex(self.current_idx)
+        self.student_combo.blockSignals(False)
+        
+        self.info_label.setText(f"Student {self.current_idx + 1}/{total_students}\n{student['name']} {student['surname']}\nID: {student['id']}")
 
         if student['id'] in self.session_edits:
             grades = self.session_edits[student['id']]['grades']
@@ -270,6 +296,8 @@ class GradingApp(QWidget):
             dest_path = os.path.join(self.dm.pdf_dir, new_name)
             shutil.copy(file_path, dest_path)
             student['pdf'] = dest_path
+            
+            self.populate_student_dropdown()
             self.load_student()
 
     def submit_grade(self):
