@@ -4,8 +4,8 @@ import logging
 import traceback
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QScrollArea, QDoubleSpinBox, QTextEdit, QPushButton,
-                             QFormLayout, QFileDialog, QComboBox, QLineEdit)
-from PyQt6.QtCore import Qt, QTimer
+                             QFormLayout, QFileDialog, QComboBox, QLineEdit, QCompleter)
+from PyQt6.QtCore import Qt, QTimer, QStringListModel
 from core.pdf_viewer import PDFViewer
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR, 
@@ -57,10 +57,17 @@ class GradingApp(QWidget):
         self.btn_search.clicked.connect(self.toggle_search)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search Name or ID... (Press Enter)")
+        self.search_input.setPlaceholderText("Search Name or ID...")
         self.search_input.setFixedHeight(35)
-        self.search_input.setFixedWidth(250)
+        self.search_input.setFixedWidth(280)
         self.search_input.setVisible(False)
+        
+        self.search_completer = QCompleter()
+        self.search_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.search_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.search_input.setCompleter(self.search_completer)
+        
+        self.search_completer.activated.connect(self.on_search_selected)
         self.search_input.returnPressed.connect(self.execute_search)
 
         self.btn_theme = QPushButton("☀️")
@@ -158,10 +165,15 @@ class GradingApp(QWidget):
     def populate_student_dropdown(self):
         self.student_combo.blockSignals(True)
         self.student_combo.clear()
+        search_terms = []
         for idx, s in enumerate(self.dm.students):
             status_icon = "✅" if s['pdf'] else "❌"
             display_text = f"{status_icon} {s['name']} {s['surname']}"
             self.student_combo.addItem(display_text, userData=idx)
+            search_terms.append(f"{s['name']} {s['surname']} - {s['id']}")
+            
+        self.search_model = QStringListModel(search_terms)
+        self.search_completer.setModel(self.search_model)
         self.student_combo.blockSignals(False)
 
     def on_dropdown_changed(self, index):
@@ -176,6 +188,16 @@ class GradingApp(QWidget):
             self.search_input.setFocus()
             self.search_input.selectAll()
 
+    def on_search_selected(self, text):
+        if "-" in text:
+            sid = text.split("-")[-1].strip()
+            for idx, s in enumerate(self.dm.students):
+                if s['id'] == sid:
+                    self.student_combo.setCurrentIndex(idx)
+                    self.search_input.clear()
+                    self.search_input.setVisible(False)
+                    return
+
     def execute_search(self):
         query = self.search_input.text().strip().lower()
         if not query:
@@ -184,6 +206,8 @@ class GradingApp(QWidget):
         for idx, s in enumerate(self.dm.students):
             if query in s['id'].lower() or query in s['name'].lower() or query in s['surname'].lower():
                 self.student_combo.setCurrentIndex(idx)
+                self.search_input.clear()
+                self.search_input.setVisible(False)
                 return
 
     def clear_inputs(self):

@@ -120,7 +120,6 @@ class DataManager:
                     
                     cell.border = Border(top=b_top, bottom=b_bottom, left=b_left, right=b_right)
 
-            # --- Calculate and Add Statistics ---
             if total_col_idx:
                 scores = pd.to_numeric(self.grades_df['Total Score'], errors='coerce').dropna()
                 
@@ -129,7 +128,7 @@ class DataManager:
                 max_val = round(scores.max(), 2) if not scores.empty else 0
                 min_val = round(scores.min(), 2) if not scores.empty else 0
                 
-                stat_labels = ["Mean (میانگین):", "Median (میانه):", "Max (بیشترین):", "Min (کمترین):"]
+                stat_labels = ["Mean:", "Median:", "Max:", "Min:"]
                 stat_values = [mean_val, median_val, max_val, min_val]
                 start_r = max_r + 2
                 
