@@ -91,13 +91,10 @@ class DataManager:
             
             center_align = Alignment(horizontal='center', vertical='center')
             desc_align = Alignment(horizontal='right', vertical='top', wrap_text=True)
-
             thick = Side(border_style="thick", color="000000")
             thin = Side(border_style="thin", color="000000")
-
             max_r = ws.max_row
             max_c = ws.max_column
-
             desc_col_idx = None
             total_col_idx = None
             q_col_indices = []
@@ -118,7 +115,7 @@ class DataManager:
                     total_col_idx = c
                 elif val in self.questions:
                     q_col_indices.append(c)
-
+                    
             for c in range(1, max_c + 1):
                 col_letter = ws.cell(row=1, column=c).column_letter
                 if c == desc_col_idx:
@@ -127,27 +124,37 @@ class DataManager:
                     ws.column_dimensions[col_letter].width = 18
                 else:
                     ws.column_dimensions[col_letter].width = 12
-
+                    
             stat_labels = ["Mean", "Median", "Max", "Min"]
             for i in range(4):
                 r = i + 2
                 ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
                 cell = ws.cell(row=r, column=1)
                 cell.value = stat_labels[i]
-
+            
             stat_cols = q_col_indices + ([total_col_idx] if total_col_idx else [])
+            data_end_row = max(7, max_r)
+            
             for c in stat_cols:
-                col_name = ws.cell(row=1, column=c).value
-                scores = pd.to_numeric(self.grades_df[col_name], errors='coerce').dropna()
-                mean_val = round(scores.mean(), 2) if not scores.empty else 0
-                median_val = round(scores.median(), 2) if not scores.empty else 0
-                max_val = round(scores.max(), 2) if not scores.empty else 0
-                min_val = round(scores.min(), 2) if not scores.empty else 0
+                col_letter = ws.cell(row=1, column=c).column_letter
+                data_range = f"{col_letter}7:{col_letter}{data_end_row}"
                 
-                vals = [mean_val, median_val, max_val, min_val]
+                formulas = [
+                    f"=IFERROR(AVERAGE({data_range}), 0)",
+                    f"=IFERROR(MEDIAN({data_range}), 0)",
+                    f"=IFERROR(MAX({data_range}), 0)",
+                    f"=IFERROR(MIN({data_range}), 0)"
+                ]
+                
                 for i in range(4):
                     r = i + 2
-                    ws.cell(row=r, column=c).value = vals[i]
+                    ws.cell(row=r, column=c).value = formulas[i]
+
+            if total_col_idx and q_col_indices:
+                first_q_letter = ws.cell(row=1, column=q_col_indices[0]).column_letter
+                last_q_letter = ws.cell(row=1, column=q_col_indices[-1]).column_letter
+                for r in range(7, data_end_row + 1):
+                    ws.cell(row=r, column=total_col_idx).value = f"=SUM({first_q_letter}{r}:{last_q_letter}{r})"
 
             for r in range(1, max_r + 1):
                 for c in range(1, max_c + 1):
@@ -162,30 +169,39 @@ class DataManager:
                         cell.alignment = desc_align
                     else:
                         cell.alignment = center_align
-
-                    b_top = thin; b_bot = thin; b_left = thin; b_right = thin
+                        
+                    b_top = thin
+                    b_bot = thin
+                    b_left = thin
+                    b_right = thin
                     
                     if r == 1:
                         b_top = thick
                         b_bot = thick
-                    if r == 2: b_top = thick
+                    if r == 2:
+                        b_top = thick
                     if r == 6:
                         b_top = thick
                         b_bot = thick
-                    if r == 7: b_top = thick
-                    if r == max_r: b_bot = thick
-                    
-                    if c == 1: b_left = thick
-                    if c == 3: b_right = thick
-                    if c == 4: b_left = thick
-                    if c == max_c: b_right = thick
-                    
+                    if r == 7:
+                        b_top = thick
+                    if r == max_r:
+                        b_bot = thick
+                    if c == 1:
+                        b_left = thick
+                    if c == 3:
+                        b_right = thick
+                    if c == 4:
+                        b_left = thick
+                    if c == max_c:
+                        b_right = thick
+                        
                     cell.border = Border(top=b_top, bottom=b_bot, left=b_left, right=b_right)
-
+                    
             ws.freeze_panes = 'D2'
-
             ws.sheet_view.rightToLeft = False
             wb.save(self.excel_path)
+            
         except Exception:
             pass
 

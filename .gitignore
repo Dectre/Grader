@@ -216,9 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
 prompt.md
 Data/tempstudents.csv
-PDFs
+PDFs/
 output/
 Data/students.csv
+Data/
 error_log.txt
