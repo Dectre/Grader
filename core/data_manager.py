@@ -25,11 +25,13 @@ class DataManager:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        cols = ['First Name', 'Last Name', 'Student ID'] + self.questions + ['Total Score', 'Description', '_Submitted']
+        cols = ['First Name', 'Last Name', 'Student ID'] + self.questions + ['Total Score', 'Not Submitted', 'Description', '_Submitted']
 
         if os.path.exists(self.csv_path):
             self.grades_df = pd.read_csv(self.csv_path, encoding='utf-8-sig')
             self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            if 'Not Submitted' not in self.grades_df.columns:
+                self.grades_df['Not Submitted'] = False
             if '_Submitted' not in self.grades_df.columns:
                 self.grades_df['_Submitted'] = False
         elif os.path.exists(self.excel_path):
@@ -47,6 +49,8 @@ class DataManager:
             
             self.grades_df = df_temp
             self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            if 'Not Submitted' not in self.grades_df.columns:
+                self.grades_df['Not Submitted'] = False
             self.grades_df['_Submitted'] = False
         else:
             self.grades_df = pd.DataFrame(columns=cols)
@@ -64,6 +68,7 @@ class DataManager:
                     'First Name': row['نام'],
                     'Last Name': row['نام خانوادگی'],
                     'Student ID': sid,
+                    'Not Submitted': False,
                     'Description': "",
                     '_Submitted': False
                 })
@@ -76,6 +81,12 @@ class DataManager:
     def export_files(self):
         self.grades_df.to_csv(self.csv_path, index=False, encoding='utf-8-sig')
         export_df = self.grades_df.drop(columns=['_Submitted'], errors='ignore')
+        
+        mask = export_df['Not Submitted'] == True
+        for q in self.questions:
+            export_df.loc[mask, q] = None
+        export_df.loc[mask, 'Total Score'] = None
+        
         export_df.to_excel(self.excel_path, index=False)
         self.apply_excel_formatting()
 
@@ -97,6 +108,7 @@ class DataManager:
             max_c = ws.max_column
             desc_col_idx = None
             total_col_idx = None
+            not_sub_col_idx = None
             q_col_indices = []
             
             ws.cell(row=1, column=1).value = ""
@@ -113,6 +125,8 @@ class DataManager:
                     desc_col_idx = c
                 elif val == 'Total Score':
                     total_col_idx = c
+                elif val == 'Not Submitted':
+                    not_sub_col_idx = c
                 elif val in self.questions:
                     q_col_indices.append(c)
                     
@@ -153,8 +167,13 @@ class DataManager:
             if total_col_idx and q_col_indices:
                 first_q_letter = ws.cell(row=1, column=q_col_indices[0]).column_letter
                 last_q_letter = ws.cell(row=1, column=q_col_indices[-1]).column_letter
+                ns_letter = ws.cell(row=1, column=not_sub_col_idx).column_letter if not_sub_col_idx else None
+                
                 for r in range(7, data_end_row + 1):
-                    ws.cell(row=r, column=total_col_idx).value = f"=SUM({first_q_letter}{r}:{last_q_letter}{r})"
+                    if ns_letter:
+                        ws.cell(row=r, column=total_col_idx).value = f'=IF({ns_letter}{r}=TRUE, "", SUM({first_q_letter}{r}:{last_q_letter}{r}))'
+                    else:
+                        ws.cell(row=r, column=total_col_idx).value = f"=SUM({first_q_letter}{r}:{last_q_letter}{r})"
 
             for r in range(1, max_r + 1):
                 for c in range(1, max_c + 1):
@@ -236,7 +255,7 @@ class DataManager:
                 continue
                 
             clean_filename = filename.replace(" ", "").replace("‌", "").replace("_", "")
-                
+            
             if first in clean_filename and last in clean_filename:
                 return os.path.join(self.pdf_dir, filename)
                 
@@ -252,8 +271,12 @@ class DataManager:
                 grades[q] = 0.0 if pd.isna(val) else float(val)
             desc = row.get('Description', '')
             desc = "" if pd.isna(desc) else str(desc)
-            return grades, desc
-        return {q: 0.0 for q in self.questions}, ""
+            
+            not_sub = row.get('Not Submitted', False)
+            not_sub = bool(not_sub) if not pd.isna(not_sub) else False
+            
+            return grades, desc, not_sub
+        return {q: 0.0 for q in self.questions}, "", False
         
     def is_submitted(self, student_id):
         idx = self.grades_df.index[self.grades_df['Student ID'] == str(student_id)].tolist()
@@ -264,14 +287,15 @@ class DataManager:
             return bool(val)
         return False
 
-    def save_grade(self, student_id, grades_dict, total, comments):
+    def save_grade(self, student_id, grades_dict, total, comments, not_submitted=False):
         idx = self.grades_df.index[self.grades_df['Student ID'] == str(student_id)].tolist()
         if idx:
             row_idx = idx[0]
             for q in self.questions:
                 self.grades_df.at[row_idx, q] = grades_dict.get(q, 0)
             self.grades_df.at[row_idx, 'Total Score'] = total
+            self.grades_df.at[row_idx, 'Not Submitted'] = not_submitted
             self.grades_df.at[row_idx, 'Description'] = str(comments)
             self.grades_df.at[row_idx, '_Submitted'] = True
-
+            
             self.export_files()

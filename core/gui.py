@@ -5,8 +5,9 @@ import traceback
 import pandas as pd
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QScrollArea, QDoubleSpinBox, QTextEdit, QPushButton,
-                             QFormLayout, QFileDialog, QComboBox, QLineEdit, QCompleter, QSplitter)
+                             QFormLayout, QFileDialog, QComboBox, QLineEdit, QCompleter, QSplitter, QCheckBox)
 from PyQt6.QtCore import Qt, QTimer, QStringListModel, QObject, QEvent
+
 from core.pdf_viewer import PDFViewer
 
 logging.basicConfig(filename='error_log.txt', level=logging.ERROR, 
@@ -30,9 +31,12 @@ class GradingApp(QWidget):
         self.is_loading = False
         self.is_desc_locked = False
         self.session_edits = {}
+        
         self.wheel_blocker = WheelBlocker()
+        
         self.setup_ui()
         self.apply_theme()
+        
         self.pdf_viewer.change_file_callback = self.request_change_file
         self.populate_student_dropdown()
         self.load_student()
@@ -55,7 +59,7 @@ class GradingApp(QWidget):
         self.btn_toggle_sidebar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_sidebar.clicked.connect(self.toggle_sidebar)
 
-        self.btn_toggle_pdf_toolbar = QPushButton("⌃")
+        self.btn_toggle_pdf_toolbar = QPushButton("🗔")
         self.btn_toggle_pdf_toolbar.setObjectName("btn_toggle_pdf_toolbar")
         self.btn_toggle_pdf_toolbar.setFixedSize(35, 35)
         self.btn_toggle_pdf_toolbar.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -129,7 +133,12 @@ class GradingApp(QWidget):
         status_score_layout.addWidget(self.total_score_label)
         sidebar_layout.addLayout(status_score_layout)
 
-        self.btn_lock_all = QPushButton("🔓 Lock All")
+        self.cb_not_submitted = QCheckBox("Did Not Submit")
+        self.cb_not_submitted.setObjectName("cb_not_submitted")
+        self.cb_not_submitted.stateChanged.connect(self.on_not_submitted_toggled)
+        sidebar_layout.addWidget(self.cb_not_submitted)
+
+        self.btn_lock_all = QPushButton("🔒 Lock All")
         self.btn_lock_all.setObjectName("btn_lock_all")
         self.btn_lock_all.setFixedHeight(35)
         self.btn_lock_all.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -141,6 +150,7 @@ class GradingApp(QWidget):
 
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
+
         for idx, q in enumerate(self.dm.questions):
             max_g = self.dm.max_grades[idx]
             
@@ -162,6 +172,7 @@ class GradingApp(QWidget):
             btn_q_lock.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_q_lock.setStyleSheet("background: transparent; border: none; font-size: 16px;")
             btn_q_lock.clicked.connect(lambda checked, question=q: self.toggle_question_lock(question))
+            
             self.lock_buttons[q] = btn_q_lock
             self.lock_states[q] = False
             
@@ -200,10 +211,11 @@ class GradingApp(QWidget):
         self.comments_edit = QTextEdit()
         self.comments_edit.textChanged.connect(self.on_input_changed)
         desc_layout.addWidget(self.comments_edit)
+        
         vertical_splitter.addWidget(desc_widget)
-
         vertical_splitter.setStretchFactor(0, 2)
         vertical_splitter.setStretchFactor(1, 1)
+
         sidebar_layout.addWidget(vertical_splitter)
 
         submit_layout = QHBoxLayout()
@@ -244,12 +256,15 @@ class GradingApp(QWidget):
         self.stats_sidebar.setVisible(False)
         stats_layout = QVBoxLayout(self.stats_sidebar)
         stats_layout.setContentsMargins(5, 0, 0, 0)
-        stats_title = QLabel("📊 Live Statistics")
+
+        stats_title = QLabel("📈 Live Statistics")
         stats_title.setStyleSheet("font-size: 16px; font-weight: bold; padding: 5px;")
         stats_layout.addWidget(stats_title)
+
         self.stats_text = QTextEdit()
         self.stats_text.setReadOnly(True)
         stats_layout.addWidget(self.stats_text)
+
         self.main_splitter.addWidget(self.stats_sidebar)
 
         self.main_splitter.setStretchFactor(0, 20)
@@ -258,12 +273,20 @@ class GradingApp(QWidget):
 
         main_app_layout.addWidget(self.main_splitter)
 
+    def on_not_submitted_toggled(self):
+        is_absent = self.cb_not_submitted.isChecked()
+        for sb in self.spinboxes.values():
+            sb.setEnabled(not is_absent)
+        self.on_input_changed()
+
     def toggle_question_lock(self, q):
         self.lock_states[q] = not self.lock_states[q]
         self.lock_buttons[q].setText("🔒" if self.lock_states[q] else "🔓")
+        
         student = self.dm.students[self.current_idx]
-        if student['pdf'] is not None:
+        if student['pdf'] is not None and not self.cb_not_submitted.isChecked():
             self.spinboxes[q].setReadOnly(self.lock_states[q])
+            
         self.sync_lock_all_button_text()
 
     def toggle_desc_lock(self):
@@ -279,27 +302,31 @@ class GradingApp(QWidget):
         for q in self.dm.questions:
             self.lock_states[q] = target_state
             self.lock_buttons[q].setText("🔒" if target_state else "🔓")
+            
             student = self.dm.students[self.current_idx]
-            if student['pdf'] is not None:
+            if student['pdf'] is not None and not self.cb_not_submitted.isChecked():
                 self.spinboxes[q].setReadOnly(target_state)
                 
         self.is_desc_locked = target_state
         self.btn_lock_desc.setText("🔒" if target_state else "🔓")
         self.comments_edit.setReadOnly(target_state)
-        self.btn_lock_all.setText("🔒 Unlock All" if target_state else "🔓 Lock All")
+
+        self.btn_lock_all.setText("🔓 Unlock All" if target_state else "🔒 Lock All")
 
     def sync_lock_all_button_text(self):
         all_locked = all(self.lock_states.values()) and self.is_desc_locked
-        self.btn_lock_all.setText("🔒 Unlock All" if all_locked else "🔓 Lock All")
+        self.btn_lock_all.setText("🔓 Unlock All" if all_locked else "🔒 Lock All")
 
     def toggle_stats_sidebar(self):
         is_visible = self.stats_sidebar.isVisible()
         self.stats_sidebar.setVisible(not is_visible)
+
         if not is_visible:
             self.update_stats_sidebar()
             self.main_splitter.setSizes([int(self.width() * 0.20), int(self.width() * 0.50), int(self.width() * 0.30)])
         else:
             self.main_splitter.setSizes([int(self.width() * 0.25), int(self.width() * 0.75), 0])
+            
         QTimer.singleShot(50, self.refresh_pdf_size)
 
     def update_stats_sidebar(self):
@@ -317,13 +344,14 @@ class GradingApp(QWidget):
         for s in self.dm.students:
             sid = s['id']
             is_sub = self.dm.is_submitted(sid)
-            saved_grades, saved_desc = self.dm.get_saved_data(sid)
+            saved_grades, saved_desc, saved_not_sub = self.dm.get_saved_data(sid)
             
             changed = False
             if sid in self.session_edits:
                 cg = self.session_edits[sid]['grades']
                 cc = self.session_edits[sid]['comments']
-                if cg != saved_grades or cc != saved_desc:
+                cn = self.session_edits[sid]['not_submitted']
+                if cg != saved_grades or cc != saved_desc or cn != saved_not_sub:
                     changed = True
                     
             if changed:
@@ -356,7 +384,7 @@ class GradingApp(QWidget):
                 <tbody>
         """
         
-        df = self.dm.grades_df[self.dm.grades_df['_Submitted'] == True]
+        df = self.dm.grades_df[(self.dm.grades_df['_Submitted'] == True) & (self.dm.grades_df['Not Submitted'] != True)]
         cols_to_check = self.dm.questions + ['Total Score']
         
         for col in cols_to_check:
@@ -385,26 +413,30 @@ class GradingApp(QWidget):
         current_index = self.student_combo.currentIndex()
         self.student_combo.blockSignals(True)
         self.student_combo.clear()
+
         search_terms = []
         for idx, s in enumerate(self.dm.students):
-            file_icon = "✅" if s['pdf'] else "❌"
+            file_icon = "📄" if s['pdf'] else "❌"
             
             is_sub = self.dm.is_submitted(s['id'])
-            saved_grades, saved_desc = self.dm.get_saved_data(s['id'])
+            saved_grades, saved_desc, saved_not_sub = self.dm.get_saved_data(s['id'])
             
             changed = False
             if s['id'] in self.session_edits:
                 cg = self.session_edits[s['id']]['grades']
                 cc = self.session_edits[s['id']]['comments']
-                if cg != saved_grades or cc != saved_desc:
+                cn = self.session_edits[s['id']]['not_submitted']
+                if cg != saved_grades or cc != saved_desc or cn != saved_not_sub:
                     changed = True
                     
             if changed:
-                status_icon = "🟡 Unsaved"
+                status_icon = "✏️ Unsaved"
+            elif saved_not_sub:
+                status_icon = "⛔ Absent"
             elif is_sub:
-                status_icon = "🟢 Submitted"
+                status_icon = "✅ Submitted"
             else:
-                status_icon = "🔴 Not Submitted"
+                status_icon = "⏳ Not Submitted"
 
             display_text = f"{file_icon} | {status_icon} | {s['name']} {s['surname']}"
             self.student_combo.addItem(display_text, userData=idx)
@@ -461,13 +493,15 @@ class GradingApp(QWidget):
     def clear_inputs(self):
         if not self.dm.students:
             return
-        
+            
         self.is_loading = True
         for q, sb in self.spinboxes.items():
             if sb.isEnabled() and not self.lock_states.get(q, False):
                 sb.setValue(0.0)
+                
         if not self.is_desc_locked:
             self.comments_edit.clear()
+            
         self.is_loading = False
         self.on_input_changed()
 
@@ -478,10 +512,12 @@ class GradingApp(QWidget):
         student_id = self.dm.students[self.current_idx]['id']
         current_grades = {q: sb.value() for q, sb in self.spinboxes.items()}
         current_comments = self.comments_edit.toPlainText()
+        current_not_sub = self.cb_not_submitted.isChecked()
         
         self.session_edits[student_id] = {
             'grades': current_grades,
-            'comments': current_comments
+            'comments': current_comments,
+            'not_submitted': current_not_sub
         }
         self.update_status_label()
         self.populate_student_dropdown()
@@ -495,20 +531,30 @@ class GradingApp(QWidget):
         
         current_grades = {q: sb.value() for q, sb in self.spinboxes.items()}
         current_desc = self.comments_edit.toPlainText()
-        saved_grades, saved_desc = self.dm.get_saved_data(student_id)
+        current_not_sub = self.cb_not_submitted.isChecked()
         
-        changed = (current_grades != saved_grades) or (current_desc != saved_desc)
+        saved_grades, saved_desc, saved_not_sub = self.dm.get_saved_data(student_id)
         
-        if changed:
-            status = "Unsaved Changes"
-            color = "#dbab09" if self.is_dark_mode else "#b08800"
-        elif is_sub:
-            status = "Submitted"
-            color = "#3fb950" if self.is_dark_mode else "#28a745"
+        changed = (current_grades != saved_grades) or (current_desc != saved_desc) or (current_not_sub != saved_not_sub)
+        
+        if current_not_sub:
+            if changed:
+                status = "Did Not Submit - Unsaved"
+                color = "#dbab09" if self.is_dark_mode else "#b08800"
+            else:
+                status = "Did Not Submit"
+                color = "#ff7b72" if self.is_dark_mode else "#d73a49"
         else:
-            status = "Not Submitted Yet"
-            color = "#ff7b72" if self.is_dark_mode else "#d73a49"
-            
+            if changed:
+                status = "Unsaved Changes"
+                color = "#dbab09" if self.is_dark_mode else "#b08800"
+            elif is_sub:
+                status = "Submitted"
+                color = "#3fb950" if self.is_dark_mode else "#28a745"
+            else:
+                status = "Not Submitted Yet"
+                color = "#ff7b72" if self.is_dark_mode else "#d73a49"
+                
         self.status_label.setText(f"Status: {status}")
         self.status_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {color};")
         
@@ -518,7 +564,7 @@ class GradingApp(QWidget):
     def toggle_pdf_toolbar(self):
         self.pdf_viewer.is_toolbar_expanded = not self.pdf_viewer.is_toolbar_expanded
         self.pdf_viewer.toolbar_widget.setVisible(self.pdf_viewer.is_toolbar_expanded)
-        self.btn_toggle_pdf_toolbar.setText("⌃" if self.pdf_viewer.is_toolbar_expanded else "⌄")
+        self.btn_toggle_pdf_toolbar.setText("🗔" if self.pdf_viewer.is_toolbar_expanded else "🖥️")
 
     def toggle_theme(self):
         self.is_dark_mode = not self.is_dark_mode
@@ -563,6 +609,7 @@ class GradingApp(QWidget):
                 QPushButton[class="toolbar-btn"] {{ background-color: #1f6feb; color: white; border: none; padding: 5px 15px; }}
                 QPushButton[class="toolbar-btn"]:hover {{ background-color: #388bfd; }}
                 QPushButton[class="toolbar-btn"]:disabled {{ background-color: #21262d; color: #484f58; border: 1px solid #30363d; }}
+                QCheckBox {{ color: #e6edf3; font-weight: bold; padding: 5px; }}
             """)
         else:
             self.setStyleSheet(f"""
@@ -592,6 +639,7 @@ class GradingApp(QWidget):
                 QPushButton[class="toolbar-btn"] {{ background-color: #0969da; color: white; border: none; padding: 5px 15px; }}
                 QPushButton[class="toolbar-btn"]:hover {{ background-color: #0353a4; }}
                 QPushButton[class="toolbar-btn"]:disabled {{ background-color: #eaeef2; color: #8c959f; border: 1px solid #d0d7de; }}
+                QCheckBox {{ color: #1f2328; font-weight: bold; padding: 5px; }}
             """)
         self.info_label.setObjectName("info_label")
         self.total_score_label.setObjectName("total_score_label")
@@ -618,13 +666,17 @@ class GradingApp(QWidget):
         if student['id'] in self.session_edits:
             grades = self.session_edits[student['id']]['grades']
             comments = self.session_edits[student['id']]['comments']
+            not_sub = self.session_edits[student['id']]['not_submitted']
         else:
-            grades, comments = self.dm.get_saved_data(student['id'])
+            grades, comments, not_sub = self.dm.get_saved_data(student['id'])
+            
+        self.cb_not_submitted.blockSignals(True)
+        self.cb_not_submitted.setChecked(not_sub)
+        self.cb_not_submitted.blockSignals(False)
 
         for q, sb in self.spinboxes.items():
             sb.setValue(grades.get(q, 0.0))
-            if student['pdf'] is None:
-                sb.setValue(0.0)
+            if student['pdf'] is None or not_sub:
                 sb.setEnabled(False)
             else:
                 sb.setEnabled(True)
@@ -632,6 +684,7 @@ class GradingApp(QWidget):
                 
         self.comments_edit.setPlainText(comments)
         self.comments_edit.setReadOnly(self.is_desc_locked)
+
         self.pdf_viewer.load_pdf(student['pdf'])
 
         self.btn_prev.setEnabled(self.current_idx > 0)
@@ -671,12 +724,15 @@ class GradingApp(QWidget):
         grades = {q: sb.value() for q, sb in self.spinboxes.items()}
         total = sum(grades.values())
         comments = self.comments_edit.toPlainText()
-
+        not_sub = self.cb_not_submitted.isChecked()
+        
         try:
-            self.dm.save_grade(student['id'], grades, total, comments)
+            self.dm.save_grade(student['id'], grades, total, comments, not_sub)
             self.session_edits.pop(student['id'], None)
+            
             self.populate_student_dropdown()
             self.update_status_label()
+
             self.btn_submit.setText("Successfully submitted!")
             self.btn_submit.setStyleSheet("background-color: #238636; color: white; border: none; font-weight: bold; border-radius: 6px;")
             QTimer.singleShot(1500, self.reset_submit_btn)
