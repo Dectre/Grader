@@ -7,7 +7,6 @@ class DataManager:
     def __init__(self):
         self.students_df = pd.read_csv(os.path.join("Data", "students.csv"), encoding='utf-8-sig')
         self.students_df['نام کاربری'] = self.students_df['نام کاربری'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
-        self.students_df = self.students_df.sort_values(by='نام خانوادگی')
 
         self.rubric_df = pd.read_csv(os.path.join("Data", "rubric.csv"), encoding='utf-8-sig')
         self.questions = self.rubric_df.iloc[:, 0].astype(str).tolist()
@@ -75,7 +74,11 @@ class DataManager:
         if new_rows:
             self.grades_df = pd.concat([self.grades_df, pd.DataFrame(new_rows)], ignore_index=True)
 
-        self.grades_df = self.grades_df.sort_values(by='Last Name')
+        ordered_ids = self.students_df['نام کاربری'].astype(str).tolist()
+        self.grades_df['Student ID'] = pd.Categorical(self.grades_df['Student ID'], categories=ordered_ids, ordered=True)
+        self.grades_df = self.grades_df.sort_values('Student ID').reset_index(drop=True)
+        self.grades_df['Student ID'] = self.grades_df['Student ID'].astype(str)
+
         self.export_files()
 
     def export_files(self):
