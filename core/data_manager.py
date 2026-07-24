@@ -90,7 +90,10 @@ class DataManager:
             export_df.loc[mask, q] = None
         export_df.loc[mask, 'Total Score'] = None
         
-        export_df.to_excel(self.excel_path, index=False)
+        # ذخیره فایل به طوری که کاملاً متوافق با مرورگرهای موبایل باشد
+        with pd.ExcelWriter(self.excel_path, engine='openpyxl') as writer:
+            export_df.to_excel(writer, index=False)
+            
         self.apply_excel_formatting()
 
     def apply_excel_formatting(self):
