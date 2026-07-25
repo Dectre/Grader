@@ -2,12 +2,15 @@ package manager
 
 import (
 	"encoding/csv"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/xuri/excelize/v2"
 
 	"grader/internal/models"
 	"grader/internal/utils"
@@ -295,4 +298,225 @@ func (dm *DataManager) GetStats() map[string]interface{} {
 		"total_students": len(dm.Students),
 		"data":           stats,
 	}
+}
+
+func (dm *DataManager) ExportFiles() {
+	f, _ := os.Create(dm.CSVPath)
+	defer f.Close()
+	writer := csv.NewWriter(f)
+	f.WriteString("\xef\xbb\xbf")
+
+	header := []string{"First Name", "Last Name", "Student ID"}
+	header = append(header, dm.Questions...)
+	header = append(header, "Total Score", "Not Submitted", "Description", "_Submitted")
+	writer.Write(header)
+
+	for _, s := range dm.Students {
+		row := []string{s.Name, s.Surname, s.ID}
+		for _, q := range dm.Questions {
+			if s.NotSubmitted {
+				row = append(row, "")
+			} else {
+				if val, ok := s.Grades[q].(float64); ok {
+					row = append(row, fmt.Sprintf("%.2f", val))
+				} else {
+					row = append(row, "")
+				}
+			}
+		}
+		if s.NotSubmitted {
+			row = append(row, "")
+		} else {
+			row = append(row, fmt.Sprintf("%.2f", s.TotalScore))
+		}
+		row = append(row, fmt.Sprintf("%t", s.NotSubmitted))
+		row = append(row, s.Description)
+		row = append(row, fmt.Sprintf("%t", s.IsSubmitted))
+		writer.Write(row)
+	}
+	writer.Flush()
+
+	xf := excelize.NewFile()
+	sheet := "Sheet1"
+
+	xf.SetDefaultFont("Vazirmatn")
+
+	exHeaders := []string{"First Name", "Last Name", "Student ID"}
+	exHeaders = append(exHeaders, dm.Questions...)
+	exHeaders = append(exHeaders, "Total Score", "Not Submitted", "Description")
+
+	maxC := len(exHeaders)
+	maxR := 7 + len(dm.Students) - 1
+	if len(dm.Students) == 0 {
+		maxR = 7
+	}
+	descColIdx := maxC
+	totalColIdx := 3 + len(dm.Questions) + 1
+	nsColIdx := totalColIdx + 1
+
+	xf.SetColWidth(sheet, "A", "C", 18)
+	for i := 4; i <= 3+len(dm.Questions); i++ {
+		colName, _ := excelize.ColumnNumberToName(i)
+		xf.SetColWidth(sheet, colName, colName, 12)
+	}
+	totColName, _ := excelize.ColumnNumberToName(totalColIdx)
+	nsColName, _ := excelize.ColumnNumberToName(nsColIdx)
+	descColName, _ := excelize.ColumnNumberToName(descColIdx)
+
+	xf.SetColWidth(sheet, totColName, totColName, 15)
+	xf.SetColWidth(sheet, nsColName, nsColName, 15)
+	xf.SetColWidth(sheet, descColName, descColName, 50)
+
+	styleCache := make(map[string]int)
+	getStyle := func(r, c int) int {
+		bold := r <= 6
+		isDesc := c == descColIdx
+
+		align := &excelize.Alignment{Horizontal: "center", Vertical: "center"}
+		if isDesc && r > 6 {
+			align = &excelize.Alignment{Horizontal: "right", Vertical: "top", WrapText: true}
+		}
+
+		top, bottom, left, right := 1, 1, 1, 1
+
+		if r == 1 {
+			top, bottom = 2, 2
+		}
+		if r == 2 {
+			top = 2
+		}
+		if r == 6 {
+			top, bottom = 2, 2
+		}
+		if r == 7 {
+			top = 2
+		}
+		if r == maxR {
+			bottom = 2
+		}
+
+		if c == 1 {
+			left = 2
+		}
+		if c == 3 {
+			right = 2
+		}
+		if c == 4 {
+			left = 2
+		}
+		if c == maxC {
+			right = 2
+		}
+
+		key := fmt.Sprintf("%v_%v_%d_%d_%d_%d", bold, isDesc, top, bottom, left, right)
+		if sID, ok := styleCache[key]; ok {
+			return sID
+		}
+
+		border := []excelize.Border{
+			{Type: "top", Color: "000000", Style: top},
+			{Type: "bottom", Color: "000000", Style: bottom},
+			{Type: "left", Color: "000000", Style: left},
+			{Type: "right", Color: "000000", Style: right},
+		}
+
+		fnt := &excelize.Font{Family: "Vazirmatn", Size: 11}
+		if bold {
+			fnt.Bold = true
+		}
+
+		sID, _ := xf.NewStyle(&excelize.Style{
+			Font:      fnt,
+			Alignment: align,
+			Border:    border,
+		})
+		styleCache[key] = sID
+		return sID
+	}
+
+	for r := 1; r <= maxR; r++ {
+		for c := 1; c <= maxC; c++ {
+			colName, _ := excelize.ColumnNumberToName(c)
+			cell := fmt.Sprintf("%s%d", colName, r)
+			xf.SetCellStyle(sheet, cell, cell, getStyle(r, c))
+		}
+	}
+
+	for i, h := range exHeaders {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 6)
+		xf.SetCellValue(sheet, cell, h)
+	}
+
+	stats := []string{"Mean", "Median", "Max", "Min"}
+	for i, s := range stats {
+		row := i + 2
+		xf.MergeCell(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row))
+		xf.SetCellValue(sheet, fmt.Sprintf("A%d", row), s)
+	}
+
+	dataStartRow := 7
+	dataEndRow := maxR
+
+	for i := range dm.Questions {
+		c := i + 4
+		colName, _ := excelize.ColumnNumberToName(c)
+		dr := fmt.Sprintf("%s%d:%s%d", colName, dataStartRow, colName, dataEndRow)
+
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", colName), fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", colName), fmt.Sprintf("=IFERROR(MEDIAN(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", colName), fmt.Sprintf("=IFERROR(MAX(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", colName), fmt.Sprintf("=IFERROR(MIN(%s), 0)", dr))
+	}
+
+	if len(dm.Questions) > 0 {
+		dr := fmt.Sprintf("%s%d:%s%d", totColName, dataStartRow, totColName, dataEndRow)
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", totColName), fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", totColName), fmt.Sprintf("=IFERROR(MEDIAN(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", totColName), fmt.Sprintf("=IFERROR(MAX(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", totColName), fmt.Sprintf("=IFERROR(MIN(%s), 0)", dr))
+	}
+
+	for rIdx, s := range dm.Students {
+		row := rIdx + dataStartRow
+		xf.SetCellValue(sheet, fmt.Sprintf("A%d", row), s.Name)
+		xf.SetCellValue(sheet, fmt.Sprintf("B%d", row), s.Surname)
+		xf.SetCellValue(sheet, fmt.Sprintf("C%d", row), s.ID)
+
+		for i, q := range dm.Questions {
+			c := i + 4
+			colName, _ := excelize.ColumnNumberToName(c)
+			cell := fmt.Sprintf("%s%d", colName, row)
+			if s.NotSubmitted {
+				xf.SetCellValue(sheet, cell, "")
+			} else {
+				if val, ok := s.Grades[q].(float64); ok {
+					xf.SetCellValue(sheet, cell, val)
+				} else {
+					xf.SetCellValue(sheet, cell, "")
+				}
+			}
+		}
+
+		xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), s.NotSubmitted)
+		xf.SetCellValue(sheet, fmt.Sprintf("%s%d", descColName, row), s.Description)
+
+		if len(dm.Questions) > 0 {
+			firstQ, _ := excelize.ColumnNumberToName(4)
+			lastQ, _ := excelize.ColumnNumberToName(3 + len(dm.Questions))
+			formula := fmt.Sprintf(`=IF(%s%d=TRUE, "", SUM(%s%d:%s%d))`, nsColName, row, firstQ, row, lastQ, row)
+			xf.SetCellFormula(sheet, fmt.Sprintf("%s%d", totColName, row), formula)
+		}
+	}
+
+	xf.SetPanes(sheet, &excelize.Panes{
+		Freeze:      true,
+		Split:       false,
+		XSplit:      3,
+		YSplit:      1,
+		TopLeftCell: "D2",
+		ActivePane:  "bottomRight",
+	})
+	xf.SetSheetView(sheet, 0, &excelize.ViewOptions{RightToLeft: func(b bool) *bool { return &b }(false)})
+
+	xf.SaveAs(dm.ExcelPath)
 }
