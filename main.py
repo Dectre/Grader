@@ -2,7 +2,7 @@ import sys
 import os
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFontDatabase, QFont
-from data_manager import DataManager
+from core.data_manager import DataManager
 from core.gui import GradingApp
 
 def main():
