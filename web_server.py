@@ -1,6 +1,7 @@
 import os
+import shutil
 import pandas as pd
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
@@ -56,11 +57,37 @@ async def submit_student(student_id: str, request: Request):
     data = await request.json()
     grades = data.get("grades", {})
     total = sum(float(v) for v in grades.values())
-    desc = data.get("description", "")
+    desc = data.get("comments", "")
     not_sub = data.get("not_submitted", False)
     
     dm.save_grade(student_id, grades, total, desc, not_sub)
     return {"status": "success", "stats": get_stats()}
+
+@app.post("/api/student/{student_id}/upload")
+async def upload_pdf(student_id: str, file: UploadFile = File(...)):
+    student = next((s for s in dm.students if str(s['id']) == student_id), None)
+    if not student:
+        return JSONResponse(status_code=404, content={"message": "Not Found"})
+        
+    if not os.path.exists(dm.pdf_dir):
+        os.makedirs(dm.pdf_dir)
+        
+    moodle_id = "0000000"
+    for filename in os.listdir(dm.pdf_dir):
+        if filename.endswith(".pdf"):
+            parts = filename.split('_')
+            if len(parts) > 2 and parts[1].isdigit():
+                moodle_id = parts[1]
+                break
+
+    new_name = f"{student['name']} {student['surname']}_{moodle_id}_assignsubmission_file_{student['id']}.pdf"
+    file_path = os.path.join(dm.pdf_dir, new_name)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    student['pdf'] = file_path
+    return {"status": "success"}
 
 @app.get("/api/pdf/{student_id}")
 def get_pdf(student_id: str):

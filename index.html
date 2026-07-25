@@ -370,7 +370,12 @@
         </div>
 
         <div class="pdf-area" id="pdfArea">
-            <embed id="pdfViewer" class="pdf-frame" type="application/pdf">
+            <embed id="pdfViewer" class="pdf-frame" type="application/pdf" style="display: none;">
+            <div id="noPdfOverlay" style="display: none; width: 100%; height: 100%; background-color: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; flex-direction: column; align-items: center; justify-content: center; gap: 15px; color: var(--text-main);">
+                <h2 id="noPdfText">No file uploaded for this student.</h2>
+                <button id="btnUploadPdf" class="btn btn-submit" style="font-size: 15px; padding: 10px 20px; height: auto;" onclick="document.getElementById('pdfUploadInput').click()">Browse & Upload PDF</button>
+            </div>
+            <input type="file" id="pdfUploadInput" accept="application/pdf" style="display: none;" onchange="uploadPDF(event)">
         </div>
 
         <div class="stats-sidebar" id="statsSidebar">
@@ -423,12 +428,19 @@
                     <div class="q-row">
                         <span style="font-size: 14px;">${q} (out of ${maxG}):</span>
                         <div style="display: flex; align-items: center; gap: 5px;">
-                            <input type="number" step="0.25" min="0" max="${maxG}" class="q-input" id="q_${q}" oninput="inputChanged()">
+                            <input type="number" step="0.25" min="0" max="${maxG}" class="q-input" id="q_${q}" oninput="clampValue(this, ${maxG}); inputChanged()">
                             <button class="lock-btn" id="lock_${q}" onclick="toggleLock('${q}')">🔓</button>
                         </div>
                     </div>
                 `;
             });
+        }
+
+        function clampValue(el, maxVal) {
+            if (el.value === "") return;
+            let val = parseFloat(el.value);
+            if (val > maxVal) el.value = maxVal;
+            if (val < 0) el.value = 0;
         }
 
         function updateDropdown() {
@@ -473,22 +485,71 @@
 
             appData.questions.forEach(q => {
                 const input = document.getElementById(`q_${q}`);
-                input.value = grades[q] || 0.00;
+                if (sessionEdits[student.id]) {
+                    input.value = grades[q] !== undefined ? grades[q] : "";
+                } else if (student.is_submitted) {
+                    input.value = grades[q];
+                } else {
+                    input.value = "";
+                }
                 input.disabled = (!student.has_pdf || notSub) || lockStates[q];
             });
             
             document.getElementById('txtComments').disabled = isDescLocked;
 
-            const pdfViewer = document.getElementById('pdfViewer');
-            if (student.has_pdf) {
-                pdfViewer.src = `/api/pdf/${student.id}`;
-                pdfViewer.style.display = 'block';
-            } else {
-                pdfViewer.src = '';
-                pdfViewer.style.display = 'none';
-            }
-
+            updatePdfVisibility();
             updateStatusLabel();
+        }
+
+        function updatePdfVisibility() {
+            const student = appData.students[currentIndex];
+            const notSub = document.getElementById('cbNotSubmitted').checked;
+            const pdfViewer = document.getElementById('pdfViewer');
+            const noPdfOverlay = document.getElementById('noPdfOverlay');
+
+            if (student.has_pdf) {
+                const targetSrc = `/api/pdf/${student.id}`;
+                // Avoid reloading PDF if it's already the active source
+                if (pdfViewer.getAttribute('src') !== targetSrc) {
+                    pdfViewer.setAttribute('src', targetSrc);
+                }
+                pdfViewer.style.display = 'block';
+                noPdfOverlay.style.display = 'none';
+            } else {
+                if (pdfViewer.getAttribute('src') !== '') {
+                    pdfViewer.setAttribute('src', '');
+                }
+                pdfViewer.style.display = 'none';
+                noPdfOverlay.style.display = 'flex';
+                if (notSub) {
+                    document.getElementById('noPdfText').innerText = 'Student is marked as Absent.';
+                    document.getElementById('btnUploadPdf').style.display = 'none';
+                } else {
+                    document.getElementById('noPdfText').innerText = 'No file uploaded for this student.';
+                    document.getElementById('btnUploadPdf').style.display = 'block';
+                }
+            }
+        }
+
+        async function uploadPDF(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const student = appData.students[currentIndex];
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const res = await fetch(`/api/student/${student.id}/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (res.ok) {
+                student.has_pdf = true;
+                updateDropdown();
+                loadStudent(currentIndex);
+            }
+            event.target.value = ''; 
         }
 
         function inputChanged() {
@@ -510,6 +571,7 @@
             
             updateDropdown();
             updateStatusLabel(total);
+            updatePdfVisibility();
         }
 
         function updateStatusLabel(totalCalc = null) {
@@ -569,8 +631,11 @@
             if (res.ok) {
                 const data = await res.json();
                 appData.stats = data.stats;
-                delete sessionEdits[student.id];
+                
                 student.is_submitted = true;
+                student.not_submitted = payload.not_submitted; 
+                
+                delete sessionEdits[student.id];
                 
                 const btnSubmit = document.getElementById('btnSubmit');
                 btnSubmit.innerText = "Saved!";
@@ -580,7 +645,7 @@
 
         function clearInputs() {
             appData.questions.forEach(q => {
-                if (!lockStates[q]) document.getElementById(`q_${q}`).value = 0;
+                if (!lockStates[q]) document.getElementById(`q_${q}`).value = "";
             });
             if (!isDescLocked) document.getElementById('txtComments').value = "";
             inputChanged();
