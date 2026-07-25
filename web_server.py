@@ -1,5 +1,8 @@
 import os
+import sys
 import shutil
+import threading
+import webbrowser
 import pandas as pd
 from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -7,15 +10,24 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 from core.data_manager import DataManager
 
+def get_base_path():
+    if hasattr(sys, '_MEIPASS'):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+BASE_DIR = get_base_path()
+
 app = FastAPI()
 dm = DataManager()
 
-if os.path.exists("fonts"):
-    app.mount("/fonts", StaticFiles(directory="fonts"), name="fonts")
+fonts_path = os.path.join(BASE_DIR, "fonts")
+if os.path.exists(fonts_path):
+    app.mount("/fonts", StaticFiles(directory=fonts_path), name="fonts")
 
 @app.get("/")
 def index():
-    with open("index.html", "r", encoding="utf-8") as f:
+    html_path = os.path.join(BASE_DIR, "index.html")
+    with open(html_path, "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 @app.get("/api/init")
@@ -201,7 +213,7 @@ def get_stats():
     stats_data = {}
     for col in dm.questions + ['Total Score']:
         if col in df.columns:
-            scores = df[col].dropna()
+            scores = pd.to_numeric(df[col], errors='coerce').dropna()
             stats_data[col] = {
                 "avg": round(scores.mean(), 2) if not scores.empty else 0,
                 "med": round(scores.median(), 2) if not scores.empty else 0,
@@ -210,5 +222,9 @@ def get_stats():
             }
     return {"total_students": len(dm.students), "data": stats_data}
 
+def open_browser():
+    webbrowser.open("http://localhost:8000")
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    threading.Timer(1.5, open_browser).start()
+    uvicorn.run(app, host="127.0.0.1", port=8000)
