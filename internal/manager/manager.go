@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/xuri/excelize/v2"
 	"grader/internal/models"
 	"grader/internal/utils"
-	"github.com/xuri/excelize/v2"
 )
 
 type DataManager struct {
@@ -33,15 +33,12 @@ func NewDataManager() (*DataManager, bool) {
 	}
 	dm.ExcelPath = filepath.Join(dm.OutputDir, "grades.xlsx")
 	dm.CSVPath = filepath.Join(dm.OutputDir, "grades.csv")
-
 	os.MkdirAll(dm.OutputDir, 0755)
 	os.MkdirAll(dm.PDFDir, 0755)
 	os.MkdirAll(dm.DataDir, 0755)
-
 	if dm.checkAndCreateTemplates() {
 		return nil, true
 	}
-
 	dm.loadRubric()
 	dm.loadStudents()
 	dm.loadSavedData()
@@ -53,21 +50,18 @@ func (dm *DataManager) checkAndCreateTemplates() bool {
 	needsSetup := false
 	studentsFile := filepath.Join(dm.DataDir, "students.csv")
 	rubricFile := filepath.Join(dm.DataDir, "rubric.csv")
-
 	if _, err := os.Stat(studentsFile); os.IsNotExist(err) {
 		f, _ := os.Create(studentsFile)
 		f.WriteString("\xef\xbb\xbfنام,نام خانوادگی,نام کاربری\n")
 		f.Close()
 		needsSetup = true
 	}
-
 	if _, err := os.Stat(rubricFile); os.IsNotExist(err) {
 		f, _ := os.Create(rubricFile)
 		f.WriteString("\xef\xbb\xbfQuestion,Max Grade\nسوال ۱,20\nسوال ۲,30\nسوال ۳,50\n")
 		f.Close()
 		needsSetup = true
 	}
-
 	if !needsSetup {
 		sf, err := os.Open(studentsFile)
 		if err == nil {
@@ -79,7 +73,6 @@ func (dm *DataManager) checkAndCreateTemplates() bool {
 			}
 		}
 	}
-
 	return needsSetup
 }
 
@@ -91,7 +84,6 @@ func (dm *DataManager) loadRubric() {
 	defer f.Close()
 	reader := csv.NewReader(f)
 	records, _ := reader.ReadAll()
-
 	for i, row := range records {
 		if i == 0 {
 			continue
@@ -112,7 +104,6 @@ func (dm *DataManager) findPDF(name, surname string) string {
 	}
 	firstName := utils.CleanString(name)
 	lastName := utils.CleanString(surname)
-
 	for _, file := range files {
 		if strings.HasSuffix(strings.ToLower(file.Name()), ".pdf") {
 			cleanFile := utils.CleanString(file.Name())
@@ -135,12 +126,10 @@ func (dm *DataManager) loadStudents() {
 	if len(records) < 2 {
 		return
 	}
-
 	headers := make(map[string]int)
 	for i, h := range records[0] {
-		headers[utils.RemoveBOM(h)] = i
+		headers[utils.RemoveBOM(strings.TrimSpace(h))] = i
 	}
-
 	idx := 0
 	for i := 1; i < len(records); i++ {
 		row := records[i]
@@ -151,7 +140,6 @@ func (dm *DataManager) loadStudents() {
 		name := strings.TrimSpace(row[headers["نام"]])
 		surname := strings.TrimSpace(row[headers["نام خانوادگی"]])
 		pdf := dm.findPDF(name, surname)
-
 		s := &models.Student{
 			Index:        idx,
 			ID:           id,
@@ -169,7 +157,6 @@ func (dm *DataManager) loadStudents() {
 		dm.Students = append(dm.Students, s)
 		idx++
 	}
-
 	for i := range dm.Students {
 		dm.Students[i].Index = i
 	}
@@ -177,25 +164,34 @@ func (dm *DataManager) loadStudents() {
 
 func (dm *DataManager) loadSavedData() {
 	var records [][]string
-	if f, err := os.Open(dm.CSVPath); err == nil {
+
+	if _, err := os.Stat(dm.CSVPath); err == nil {
+		f, err := os.Open(dm.CSVPath)
+		if err != nil {
+			return
+		}
 		reader := csv.NewReader(f)
 		records, _ = reader.ReadAll()
 		f.Close()
-	} else if f, err := os.Open(dm.ExcelPath); err == nil {
-		f.Close()
+	} else if _, err := os.Stat(dm.ExcelPath); err == nil {
 		xf, err := excelize.OpenFile(dm.ExcelPath)
-		if err == nil {
-			sheet := xf.GetSheetName(0)
-			records, _ = xf.GetRows(sheet)
-			var filtered [][]string
-			for _, row := range records {
-				if len(row) > 0 && !contains([]string{"Mean", "Median", "Max", "Min", "First Name"}, row[0]) {
+		if err != nil {
+			return
+		}
+		sheet := xf.GetSheetName(0)
+		records, _ = xf.GetRows(sheet)
+		xf.Close()
+
+		var filtered [][]string
+		for _, row := range records {
+			if len(row) > 0 {
+				firstCol := strings.TrimSpace(row[0])
+				if firstCol != "Mean" && firstCol != "Median" && firstCol != "Max" && firstCol != "Min" && firstCol != "First Name" {
 					filtered = append(filtered, row)
 				}
 			}
-			records = filtered
-			xf.Close()
 		}
+		records = filtered
 	} else {
 		return
 	}
@@ -206,36 +202,54 @@ func (dm *DataManager) loadSavedData() {
 
 	headers := make(map[string]int)
 	for i, h := range records[0] {
-		headers[utils.RemoveBOM(h)] = i
+		cleanH := utils.RemoveBOM(strings.TrimSpace(h))
+		headers[cleanH] = i
+	}
+	
+	if len(records[0]) >= 3 {
+		headers["First Name"] = 0
+		headers["Last Name"] = 1
+		headers["Student ID"] = 2
 	}
 
 	for i := 1; i < len(records); i++ {
 		row := records[i]
-		idIdx, ok := headers["Student ID"]
-		if !ok {
+		
+		idIdx, hasID := headers["Student ID"]
+		if !hasID {
 			continue
 		}
+		
 		id := utils.CleanID(row[idIdx])
+		if id == "" || id == "nan" {
+			continue
+		}
+
 		for _, s := range dm.Students {
 			if s.ID == id {
-				if val, ok := headers["_Submitted"]; ok && strings.EqualFold(row[val], "true") {
-					s.IsSubmitted = true
+				if val, ok := headers["_Submitted"]; ok {
+					s.IsSubmitted = strings.EqualFold(strings.TrimSpace(row[val]), "true")
 				}
-				if val, ok := headers["Not Submitted"]; ok && strings.EqualFold(row[val], "true") {
-					s.NotSubmitted = true
+				
+				if val, ok := headers["Not Submitted"]; ok {
+					s.NotSubmitted = strings.EqualFold(strings.TrimSpace(row[val]), "true")
 				}
+				
 				if val, ok := headers["Description"]; ok {
-					s.Description = row[val]
+					s.Description = strings.TrimSpace(row[val])
 				}
+				
 				if val, ok := headers["Total Score"]; ok {
-					if t, err := strconv.ParseFloat(row[val], 64); err == nil {
+					if t, err := strconv.ParseFloat(strings.TrimSpace(row[val]), 64); err == nil {
 						s.TotalScore = t
 					}
 				}
+				
 				for _, q := range dm.Questions {
 					if val, ok := headers[q]; ok {
-						if row[val] != "" {
-							if g, err := strconv.ParseFloat(row[val], 64); err == nil {
+						cleanVal := strings.TrimSpace(row[val])
+						if cleanVal != "" {
+							if g, err := strconv.ParseFloat(cleanVal, 64); err == nil {
 								s.Grades[q] = g
 							}
 						}
@@ -250,11 +264,21 @@ func (dm *DataManager) loadSavedData() {
 func (dm *DataManager) SaveGrade(id string, grades map[string]interface{}, total float64, comments string, notSub bool) {
 	for _, s := range dm.Students {
 		if s.ID == id {
-			for k, v := range grades {
-				if valStr, ok := v.(string); ok && valStr == "" {
-					s.Grades[k] = ""
-				} else if valFloat, ok := v.(float64); ok {
-					s.Grades[k] = valFloat
+			for _, q := range dm.Questions {
+				if v, exists := grades[q]; exists {
+					if valStr, ok := v.(string); ok && valStr == "" {
+						s.Grades[q] = ""
+					} else if valFloat, ok := v.(float64); ok {
+						s.Grades[q] = valFloat
+					} else if valStr, ok := v.(string); ok {
+						if f, err := strconv.ParseFloat(valStr, 64); err == nil {
+							s.Grades[q] = f
+						} else {
+							s.Grades[q] = ""
+						}
+					}
+				} else {
+					s.Grades[q] = 0.0
 				}
 			}
 			s.TotalScore = total
@@ -317,13 +341,3 @@ func (dm *DataManager) GetStats() map[string]interface{} {
 		"data":           stats,
 	}
 }
-
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-

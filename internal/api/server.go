@@ -62,13 +62,13 @@ func (s *Server) handleInit(c *gin.Context) {
 	var students []map[string]interface{}
 	for _, st := range s.dm.Students {
 		students = append(students, map[string]interface{}{
-			"index":         st.Index,
-			"id":            st.ID,
-			"name":          st.Name,
-			"surname":       st.Surname,
-			"has_pdf":       st.HasPDF,
-			"is_submitted":  st.IsSubmitted,
-			"not_submitted": st.NotSubmitted,
+			"index":          st.Index,
+			"id":             st.ID,
+			"name":           st.Name,
+			"surname":        st.Surname,
+			"has_pdf":        st.HasPDF,
+			"is_submitted":   st.IsSubmitted,
+			"not_submitted":  st.NotSubmitted,
 		})
 	}
 	c.JSON(200, gin.H{
@@ -129,7 +129,6 @@ func (s *Server) handleSubmit(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "success", "stats": s.dm.GetStats()})
 }
 
-
 func (s *Server) handleUpload(c *gin.Context) {
 	id := c.Param("id")
 	var student *models.Student
@@ -188,9 +187,7 @@ func (s *Server) handleDownloadGrades(c *gin.Context) {
 }
 
 func (s *Server) handlePDFView(c *gin.Context) {
-	html := `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><title>Grades Report</title>`
-	html += `<style>@font-face { font-family: 'Vazirmatn'; src: url('/fonts/Vazirmatn.ttf'); } body { font-family: 'Vazirmatn', Tahoma, Arial, sans-serif; padding: 20px; background: #fff; color: #000; direction: rtl; } h2 { text-align: center; color: #333; margin-bottom: 20px; } .table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: center; border: 2px solid #000; } .table th, .table td { border: 1px solid #000; padding: 6px; vertical-align: middle; } .table th { background-color: #f4f4f4; color: #000; font-weight: bold; } .stat-row th { text-align: left; padding-left: 15px; border-bottom: 1px solid #000; } .header-row th { border-top: 2px solid #000; border-bottom: 2px solid #000; } .desc-col { text-align: right; max-width: 400px; line-height: 1.6; } .table tbody tr:last-child td { border-bottom: 2px solid #000; } @media print { body { padding: 0; } .no-print { display: none; } }</style></head>`
-	html += `<body><div class="no-print" style="text-align: center; margin-bottom: 20px;"><button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; background: #1f6feb; color: white; border: none; border-radius: 5px; font-family: 'Vazirmatn';">Save as PDF / Print</button></div><h2>گزارش نمرات دانشجویان</h2><table class="table"><thead>`
+	html := `<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Grades Report</title><style>@font-face { font-family: 'Vazirmatn'; src: url('/fonts/Vazirmatn.ttf'); }body { font-family: 'Vazirmatn', Tahoma, Arial, sans-serif; padding: 20px; background: #fff; color: #000; direction: rtl; }h2 { text-align: center; color: #333; margin-bottom: 20px; }.table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: center; border: 2px solid #000; }.table th, .table td { border: 1px solid #000; padding: 6px; vertical-align: middle; }.table th { background-color: #f4f4f4; color: #000; font-weight: bold; }.stat-row th { text-align: left; padding-left: 15px; border-bottom: 1px solid #000; }.header-row th { border-top: 2px solid #000; border-bottom: 2px solid #000; }.desc-col { text-align: right; max-width: 400px; line-height: 1.6; }.table tbody tr:last-child td { border-bottom: 2px solid #000; }@media print {body { padding: 0; }.no-print { display: none; }}</style></head><body><div class="no-print" style="text-align: center; margin-bottom: 20px;"><button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; background: #1f6feb; color: white; border: none; border-radius: 5px; font-family: 'Vazirmatn';">Save as PDF / Print</button></div><h2>گزارش نمرات دانشجویان</h2><table class="table"><thead>`
 
 	statsData := s.dm.GetStats()["data"].(map[string]interface{})
 	labels := []string{"Mean", "Median", "Max", "Min"}
@@ -203,7 +200,7 @@ func (s *Server) handlePDFView(c *gin.Context) {
 			html += fmt.Sprintf("<td>%.2f</td>", val)
 		}
 		val := statsData["Total Score"].(map[string]float64)[keys[i]]
-		html += fmt.Sprintf("<td>%.2f</td><td></td><td></td></tr>", val)
+		html += fmt.Sprintf("<td>%.2f</td></tr>", val)
 	}
 
 	html += "<tr class='header-row'><th>First Name</th><th>Last Name</th><th>Student ID</th>"
