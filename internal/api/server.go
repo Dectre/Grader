@@ -83,8 +83,16 @@ func (s *Server) handleGetStudent(c *gin.Context) {
 	id := c.Param("id")
 	for _, st := range s.dm.Students {
 		if st.ID == id {
+			cleanGrades := make(map[string]float64)
+			for _, q := range s.dm.Questions {
+				if val, ok := st.Grades[q].(float64); ok {
+					cleanGrades[q] = val
+				} else {
+					cleanGrades[q] = 0.0
+				}
+			}
 			c.JSON(200, gin.H{
-				"grades":        st.Grades,
+				"grades":        cleanGrades,
 				"description":   st.Description,
 				"not_submitted": st.NotSubmitted,
 				"is_submitted":  st.IsSubmitted,
@@ -108,13 +116,19 @@ func (s *Server) handleSubmit(c *gin.Context) {
 	}
 	total := 0.0
 	for _, v := range body.Grades {
-		if val, ok := v.(float64); ok {
+		switch val := v.(type) {
+		case float64:
 			total += val
+		case string:
+			if f, err := strconv.ParseFloat(val, 64); err == nil {
+				total += f
+			}
 		}
 	}
 	s.dm.SaveGrade(id, body.Grades, total, body.Comments, body.NotSubmitted)
 	c.JSON(200, gin.H{"status": "success", "stats": s.dm.GetStats()})
 }
+
 
 func (s *Server) handleUpload(c *gin.Context) {
 	id := c.Param("id")
@@ -159,6 +173,7 @@ func (s *Server) handleGetPDF(c *gin.Context) {
 	id := c.Param("id")
 	for _, st := range s.dm.Students {
 		if st.ID == id && st.HasPDF {
+			c.Header("Content-Disposition", "inline")
 			c.File(st.PDFPath)
 			return
 		}

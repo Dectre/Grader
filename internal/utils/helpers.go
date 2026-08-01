@@ -13,7 +13,7 @@ func CleanString(s string) string {
 	s = strings.ReplaceAll(s, " ", "")
 	s = strings.ReplaceAll(s, "\u200c", "")
 	s = strings.ReplaceAll(s, "_", "")
-	return strings.ToLower(s)
+	return s
 }
 
 func CleanID(s string) string {
