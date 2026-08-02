@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 	"grader/internal/models"
@@ -42,6 +43,7 @@ func NewDataManager() (*DataManager, bool) {
 	dm.loadRubric()
 	dm.loadStudents()
 	dm.loadSavedData()
+	dm.recalcFullyGraded()
 	dm.ExportFiles()
 	return dm, false
 }
@@ -97,22 +99,36 @@ func (dm *DataManager) loadRubric() {
 	}
 }
 
-func (dm *DataManager) findPDF(name, surname string) string {
+func (dm *DataManager) findPDF(name, surname, id string) string {
 	files, err := os.ReadDir(dm.PDFDir)
 	if err != nil {
 		return ""
 	}
 	firstName := utils.CleanString(name)
 	lastName := utils.CleanString(surname)
+	cleanID := utils.CleanString(id)
+	var bestPath string
+	var bestTime time.Time
+	var idPath string
 	for _, file := range files {
 		if strings.HasSuffix(strings.ToLower(file.Name()), ".pdf") {
 			cleanFile := utils.CleanString(file.Name())
-			if strings.Contains(cleanFile, firstName) && strings.Contains(cleanFile, lastName) {
-				return filepath.Join(dm.PDFDir, file.Name())
+			if firstName != "" && lastName != "" && strings.Contains(cleanFile, firstName) && strings.Contains(cleanFile, lastName) {
+				info, err := file.Info()
+				if err == nil && (bestPath == "" || info.ModTime().After(bestTime)) {
+					bestPath = filepath.Join(dm.PDFDir, file.Name())
+					bestTime = info.ModTime()
+				}
+			}
+			if idPath == "" && cleanID != "" && strings.Contains(cleanFile, cleanID) {
+				idPath = filepath.Join(dm.PDFDir, file.Name())
 			}
 		}
 	}
-	return ""
+	if bestPath != "" {
+		return bestPath
+	}
+	return idPath
 }
 
 func (dm *DataManager) loadStudents() {
@@ -139,7 +155,7 @@ func (dm *DataManager) loadStudents() {
 		}
 		name := strings.TrimSpace(row[headers["نام"]])
 		surname := strings.TrimSpace(row[headers["نام خانوادگی"]])
-		pdf := dm.findPDF(name, surname)
+		pdf := dm.findPDF(name, surname, id)
 		s := &models.Student{
 			Index:        idx,
 			ID:           id,
@@ -164,7 +180,6 @@ func (dm *DataManager) loadStudents() {
 
 func (dm *DataManager) loadSavedData() {
 	var records [][]string
-
 	if _, err := os.Stat(dm.CSVPath); err == nil {
 		f, err := os.Open(dm.CSVPath)
 		if err != nil {
@@ -181,7 +196,6 @@ func (dm *DataManager) loadSavedData() {
 		sheet := xf.GetSheetName(0)
 		records, _ = xf.GetRows(sheet)
 		xf.Close()
-
 		var filtered [][]string
 		for _, row := range records {
 			if len(row) > 0 {
@@ -195,56 +209,49 @@ func (dm *DataManager) loadSavedData() {
 	} else {
 		return
 	}
-
 	if len(records) < 2 {
 		return
 	}
-
 	headers := make(map[string]int)
 	for i, h := range records[0] {
-		cleanH := utils.RemoveBOM(strings.TrimSpace(h))
-		headers[cleanH] = i
+		headers[utils.RemoveBOM(strings.TrimSpace(h))] = i
 	}
-	
 	if len(records[0]) >= 3 {
 		headers["First Name"] = 0
 		headers["Last Name"] = 1
 		headers["Student ID"] = 2
 	}
-
 	for i := 1; i < len(records); i++ {
 		row := records[i]
-		
 		idIdx, hasID := headers["Student ID"]
 		if !hasID {
 			continue
 		}
-		
 		id := utils.CleanID(row[idIdx])
 		if id == "" || id == "nan" {
 			continue
 		}
-
 		for _, s := range dm.Students {
 			if s.ID == id {
 				if val, ok := headers["_Submitted"]; ok {
 					s.IsSubmitted = strings.EqualFold(strings.TrimSpace(row[val]), "true")
 				}
-				
 				if val, ok := headers["Not Submitted"]; ok {
-					s.NotSubmitted = strings.EqualFold(strings.TrimSpace(row[val]), "true")
+					v := strings.TrimSpace(row[val])
+					s.NotSubmitted = strings.EqualFold(v, "true") || v == "☑"
 				}
-				
+				if val, ok := headers["Flagged"]; ok {
+					v := strings.TrimSpace(row[val])
+					s.Flagged = strings.EqualFold(v, "true") || v == "☑"
+				}
 				if val, ok := headers["Description"]; ok {
 					s.Description = strings.TrimSpace(row[val])
 				}
-				
 				if val, ok := headers["Total Score"]; ok {
 					if t, err := strconv.ParseFloat(strings.TrimSpace(row[val]), 64); err == nil {
 						s.TotalScore = t
 					}
 				}
-				
 				for _, q := range dm.Questions {
 					if val, ok := headers[q]; ok {
 						cleanVal := strings.TrimSpace(row[val])
@@ -261,30 +268,62 @@ func (dm *DataManager) loadSavedData() {
 	}
 }
 
+func (dm *DataManager) recalcFullyGraded() {
+	for _, s := range dm.Students {
+		if s.NotSubmitted || len(dm.Questions) == 0 {
+			s.FullyGraded = false
+			continue
+		}
+		full := true
+		for _, q := range dm.Questions {
+			if _, ok := s.Grades[q].(float64); !ok {
+				full = false
+				break
+			}
+		}
+		s.FullyGraded = full
+	}
+}
+
 func (dm *DataManager) SaveGrade(id string, grades map[string]interface{}, total float64, comments string, notSub bool) {
 	for _, s := range dm.Students {
 		if s.ID == id {
 			for _, q := range dm.Questions {
-				if v, exists := grades[q]; exists {
-					if valStr, ok := v.(string); ok && valStr == "" {
+				v, exists := grades[q]
+				if !exists {
+					s.Grades[q] = ""
+					continue
+				}
+				switch val := v.(type) {
+				case float64:
+					s.Grades[q] = val
+				case string:
+					if val == "" {
 						s.Grades[q] = ""
-					} else if valFloat, ok := v.(float64); ok {
-						s.Grades[q] = valFloat
-					} else if valStr, ok := v.(string); ok {
-						if f, err := strconv.ParseFloat(valStr, 64); err == nil {
-							s.Grades[q] = f
-						} else {
-							s.Grades[q] = ""
-						}
+					} else if f, err := strconv.ParseFloat(val, 64); err == nil {
+						s.Grades[q] = f
+					} else {
+						s.Grades[q] = ""
 					}
-				} else {
-					s.Grades[q] = 0.0
+				default:
+					s.Grades[q] = ""
 				}
 			}
 			s.TotalScore = total
 			s.Description = comments
 			s.NotSubmitted = notSub
 			s.IsSubmitted = true
+			dm.recalcFullyGraded()
+			dm.ExportFiles()
+			break
+		}
+	}
+}
+
+func (dm *DataManager) SetFlag(id string, flagged bool) {
+	for _, s := range dm.Students {
+		if s.ID == id {
+			s.Flagged = flagged
 			dm.ExportFiles()
 			break
 		}

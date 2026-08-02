@@ -9,6 +9,8 @@ type Student struct {
 	PDFPath      string
 	IsSubmitted  bool
 	NotSubmitted bool
+	FullyGraded  bool
+	Flagged      bool
 	Description  string
 	Grades       map[string]interface{}
 	TotalScore   float64

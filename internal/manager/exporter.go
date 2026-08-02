@@ -13,12 +13,10 @@ func (dm *DataManager) ExportFiles() {
 	defer f.Close()
 	writer := csv.NewWriter(f)
 	f.WriteString("\xef\xbb\xbf")
-
 	header := []string{"First Name", "Last Name", "Student ID"}
 	header = append(header, dm.Questions...)
-	header = append(header, "Total Score", "Not Submitted", "Description", "_Submitted")
+	header = append(header, "Total Score", "Not Submitted", "Description", "Fully Graded", "Flagged", "_Submitted")
 	writer.Write(header)
-
 	for _, s := range dm.Students {
 		row := []string{s.Name, s.Surname, s.ID}
 		for _, q := range dm.Questions {
@@ -35,6 +33,8 @@ func (dm *DataManager) ExportFiles() {
 		}
 		row = append(row, fmt.Sprintf("%t", s.NotSubmitted))
 		row = append(row, s.Description)
+		row = append(row, fmt.Sprintf("%t", s.FullyGraded))
+		row = append(row, fmt.Sprintf("%t", s.Flagged))
 		row = append(row, fmt.Sprintf("%t", s.IsSubmitted))
 		writer.Write(row)
 	}
@@ -46,32 +46,34 @@ func (dm *DataManager) ExportFiles() {
 
 	exHeaders := []string{"First Name", "Last Name", "Student ID"}
 	exHeaders = append(exHeaders, dm.Questions...)
-	exHeaders = append(exHeaders, "Total Score", "Not Submitted", "Description")
-
+	exHeaders = append(exHeaders, "Total Score", "Not Submitted", "Description", "Fully Graded", "Flagged")
 	maxC := len(exHeaders)
 	maxR := 7 + len(dm.Students) - 1
 	if len(dm.Students) == 0 {
 		maxR = 7
 	}
 
-	descColIdx := maxC
-	nsColIdx := maxC - 1
-	totColIdx := maxC - 2
+	flagColIdx := maxC
+	fgColIdx := maxC - 1
+	descColIdx := maxC - 2
+	nsColIdx := maxC - 3
+	totColIdx := maxC - 4
 
 	for i, q := range dm.Questions {
 		c := i + 4
 		colName, _ := excelize.ColumnNumberToName(c)
 		xf.SetCellValue(sheet, fmt.Sprintf("%s1", colName), q)
 	}
-
 	totColName, _ := excelize.ColumnNumberToName(totColIdx)
 	xf.SetCellValue(sheet, fmt.Sprintf("%s1", totColName), "Total Score")
-
 	nsColName, _ := excelize.ColumnNumberToName(nsColIdx)
 	xf.SetCellValue(sheet, fmt.Sprintf("%s1", nsColName), "Not Submitted")
-
 	descColName, _ := excelize.ColumnNumberToName(descColIdx)
 	xf.SetCellValue(sheet, fmt.Sprintf("%s1", descColName), "Description")
+	fgColName, _ := excelize.ColumnNumberToName(fgColIdx)
+	xf.SetCellValue(sheet, fmt.Sprintf("%s1", fgColName), "Fully Graded")
+	flagColName, _ := excelize.ColumnNumberToName(flagColIdx)
+	xf.SetCellValue(sheet, fmt.Sprintf("%s1", flagColName), "Flagged")
 
 	xf.SetCellValue(sheet, "A6", "First Name")
 	xf.SetCellValue(sheet, "B6", "Last Name")
@@ -91,13 +93,11 @@ func (dm *DataManager) ExportFiles() {
 		c := i + 4
 		colName, _ := excelize.ColumnNumberToName(c)
 		dr := fmt.Sprintf("%s%d:%s%d", colName, dataStartRow, colName, dataEndRow)
-
 		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", colName), fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
 		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", colName), fmt.Sprintf("=IFERROR(MEDIAN(%s), 0)", dr))
 		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", colName), fmt.Sprintf("=IFERROR(MAX(%s), 0)", dr))
 		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", colName), fmt.Sprintf("=IFERROR(MIN(%s), 0)", dr))
 	}
-
 	if len(dm.Questions) > 0 {
 		dr := fmt.Sprintf("%s%d:%s%d", totColName, dataStartRow, totColName, dataEndRow)
 		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", totColName), fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
@@ -111,7 +111,6 @@ func (dm *DataManager) ExportFiles() {
 		xf.SetCellValue(sheet, fmt.Sprintf("A%d", row), s.Name)
 		xf.SetCellValue(sheet, fmt.Sprintf("B%d", row), s.Surname)
 		xf.SetCellValue(sheet, fmt.Sprintf("C%d", row), s.ID)
-
 		for i, q := range dm.Questions {
 			c := i + 4
 			colName, _ := excelize.ColumnNumberToName(c)
@@ -126,14 +125,26 @@ func (dm *DataManager) ExportFiles() {
 				}
 			}
 		}
-
-		xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), s.NotSubmitted)
+		if s.NotSubmitted {
+			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☑")
+		} else {
+			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☐")
+		}
 		xf.SetCellValue(sheet, fmt.Sprintf("%s%d", descColName, row), s.Description)
-
+		if s.FullyGraded {
+			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", fgColName, row), "☑")
+		} else {
+			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", fgColName, row), "☐")
+		}
+		if s.Flagged {
+			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", flagColName, row), "☑")
+		} else {
+			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", flagColName, row), "☐")
+		}
 		if len(dm.Questions) > 0 {
 			firstQ, _ := excelize.ColumnNumberToName(4)
 			lastQ, _ := excelize.ColumnNumberToName(3 + len(dm.Questions))
-			formula := fmt.Sprintf(`=IF(%s%d=TRUE, "", SUM(%s%d:%s%d))`, nsColName, row, firstQ, row, lastQ, row)
+			formula := fmt.Sprintf(`=IF(%s%d="☑", "", SUM(%s%d:%s%d))`, nsColName, row, firstQ, row, lastQ, row)
 			xf.SetCellFormula(sheet, fmt.Sprintf("%s%d", totColName, row), formula)
 		}
 	}
@@ -144,21 +155,19 @@ func (dm *DataManager) ExportFiles() {
 		xf.SetColWidth(sheet, colName, colName, 12)
 	}
 	xf.SetColWidth(sheet, descColName, descColName, 50)
+	xf.SetColWidth(sheet, fgColName, fgColName, 14)
+	xf.SetColWidth(sheet, flagColName, flagColName, 12)
 
 	styleCache := make(map[string]int)
-
 	for r := 1; r <= maxR; r++ {
 		for c := 1; c <= maxC; c++ {
 			bold := r <= 6
 			isDesc := (c == descColIdx)
-
 			align := &excelize.Alignment{Horizontal: "center", Vertical: "center"}
 			if isDesc && r > 6 {
 				align = &excelize.Alignment{Horizontal: "right", Vertical: "top", WrapText: true}
 			}
-
 			top, bottom, left, right := 1, 1, 1, 1
-
 			if r == 1 {
 				top, bottom = 5, 5
 			}
@@ -186,7 +195,6 @@ func (dm *DataManager) ExportFiles() {
 			if c == maxC {
 				right = 5
 			}
-
 			key := fmt.Sprintf("%v_%v_%d_%d_%d_%d", bold, isDesc, top, bottom, left, right)
 			sID, exists := styleCache[key]
 			if !exists {
@@ -222,6 +230,5 @@ func (dm *DataManager) ExportFiles() {
 		ActivePane:  "bottomRight",
 	})
 	xf.SetSheetView(sheet, 0, &excelize.ViewOptions{RightToLeft: func(b bool) *bool { return &b }(false)})
-
 	xf.SaveAs(dm.ExcelPath)
 }

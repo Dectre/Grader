@@ -48,6 +48,7 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/api/init", s.handleInit)
 	s.router.GET("/api/student/:id", s.handleGetStudent)
 	s.router.POST("/api/student/:id/submit", s.handleSubmit)
+	s.router.POST("/api/student/:id/flag", s.handleFlag)
 	s.router.POST("/api/student/:id/upload", s.handleUpload)
 	s.router.GET("/api/pdf/:id", s.handleGetPDF)
 	s.router.GET("/api/download/grades", s.handleDownloadGrades)
@@ -62,13 +63,15 @@ func (s *Server) handleInit(c *gin.Context) {
 	var students []map[string]interface{}
 	for _, st := range s.dm.Students {
 		students = append(students, map[string]interface{}{
-			"index":          st.Index,
-			"id":             st.ID,
-			"name":           st.Name,
-			"surname":        st.Surname,
-			"has_pdf":        st.HasPDF,
-			"is_submitted":   st.IsSubmitted,
-			"not_submitted":  st.NotSubmitted,
+			"index":         st.Index,
+			"id":            st.ID,
+			"name":          st.Name,
+			"surname":       st.Surname,
+			"has_pdf":       st.HasPDF,
+			"is_submitted":  st.IsSubmitted,
+			"not_submitted": st.NotSubmitted,
+			"fully_graded":  st.FullyGraded,
+			"flagged":       st.Flagged,
 		})
 	}
 	c.JSON(200, gin.H{
@@ -83,19 +86,13 @@ func (s *Server) handleGetStudent(c *gin.Context) {
 	id := c.Param("id")
 	for _, st := range s.dm.Students {
 		if st.ID == id {
-			cleanGrades := make(map[string]float64)
-			for _, q := range s.dm.Questions {
-				if val, ok := st.Grades[q].(float64); ok {
-					cleanGrades[q] = val
-				} else {
-					cleanGrades[q] = 0.0
-				}
-			}
 			c.JSON(200, gin.H{
-				"grades":        cleanGrades,
+				"grades":        st.Grades,
 				"description":   st.Description,
 				"not_submitted": st.NotSubmitted,
 				"is_submitted":  st.IsSubmitted,
+				"fully_graded":  st.FullyGraded,
+				"flagged":       st.Flagged,
 			})
 			return
 		}
@@ -127,6 +124,19 @@ func (s *Server) handleSubmit(c *gin.Context) {
 	}
 	s.dm.SaveGrade(id, body.Grades, total, body.Comments, body.NotSubmitted)
 	c.JSON(200, gin.H{"status": "success", "stats": s.dm.GetStats()})
+}
+
+func (s *Server) handleFlag(c *gin.Context) {
+	id := c.Param("id")
+	var body struct {
+		Flagged bool `json:"flagged"`
+	}
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(400, gin.H{"error": "Bad Request"})
+		return
+	}
+	s.dm.SetFlag(id, body.Flagged)
+	c.JSON(200, gin.H{"status": "success"})
 }
 
 func (s *Server) handleUpload(c *gin.Context) {
@@ -173,6 +183,9 @@ func (s *Server) handleGetPDF(c *gin.Context) {
 	for _, st := range s.dm.Students {
 		if st.ID == id && st.HasPDF {
 			c.Header("Content-Disposition", "inline")
+			c.Header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+			c.Header("Pragma", "no-cache")
+			c.Header("Expires", "0")
 			c.File(st.PDFPath)
 			return
 		}
@@ -207,7 +220,7 @@ func (s *Server) handlePDFView(c *gin.Context) {
 	for _, q := range s.dm.Questions {
 		html += fmt.Sprintf("<th>%s</th>", q)
 	}
-	html += "<th>Total Score</th><th>Not Submitted</th><th>Description</th></tr></thead><tbody>"
+	html += "<th>Total Score</th><th>Not Submitted</th><th>Description</th><th>Fully Graded</th><th>Flagged</th></tr></thead><tbody>"
 
 	for _, st := range s.dm.Students {
 		html += "<tr>"
@@ -228,10 +241,25 @@ func (s *Server) handlePDFView(c *gin.Context) {
 		} else {
 			html += fmt.Sprintf("<td>%.2f</td>", st.TotalScore)
 		}
-		html += fmt.Sprintf("<td>%t</td>", st.NotSubmitted)
+		if st.NotSubmitted {
+			html += "<td>☑</td>"
+		} else {
+			html += "<td>☐</td>"
+		}
 		desc := strings.ReplaceAll(st.Description, "\n", "<br>")
 		desc = strings.ReplaceAll(desc, "\\n", "<br>")
-		html += fmt.Sprintf("<td class='desc-col'>%s</td></tr>", desc)
+		html += fmt.Sprintf("<td class='desc-col'>%s</td>", desc)
+		if st.FullyGraded {
+			html += "<td>☑</td>"
+		} else {
+			html += "<td>☐</td>"
+		}
+		if st.Flagged {
+			html += "<td>☑</td>"
+		} else {
+			html += "<td>☐</td>"
+		}
+		html += "</tr>"
 	}
 
 	html += "</tbody></table></body></html>"
