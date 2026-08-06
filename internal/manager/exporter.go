@@ -15,7 +15,7 @@ func (dm *DataManager) ExportFiles() {
 	f.WriteString("\xef\xbb\xbf")
 	header := []string{"First Name", "Last Name", "Student ID"}
 	header = append(header, dm.Questions...)
-	header = append(header, "Total Score", "Not Submitted", "Description", "Fully Graded", "Flagged", "_Submitted")
+	header = append(header, "Total Score", "Description", "Not Submitted", "Fully Graded", "Flagged", "_Submitted")
 	writer.Write(header)
 	for _, s := range dm.Students {
 		row := []string{s.Name, s.Surname, s.ID}
@@ -31,8 +31,8 @@ func (dm *DataManager) ExportFiles() {
 		} else {
 			row = append(row, fmt.Sprintf("%.2f", s.TotalScore))
 		}
-		row = append(row, fmt.Sprintf("%t", s.NotSubmitted))
 		row = append(row, s.Description)
+		row = append(row, fmt.Sprintf("%t", s.NotSubmitted))
 		row = append(row, fmt.Sprintf("%t", s.FullyGraded))
 		row = append(row, fmt.Sprintf("%t", s.Flagged))
 		row = append(row, fmt.Sprintf("%t", s.IsSubmitted))
@@ -46,7 +46,7 @@ func (dm *DataManager) ExportFiles() {
 
 	exHeaders := []string{"First Name", "Last Name", "Student ID"}
 	exHeaders = append(exHeaders, dm.Questions...)
-	exHeaders = append(exHeaders, "Total Score", "Not Submitted", "Description", "Fully Graded", "Flagged")
+	exHeaders = append(exHeaders, "Total Score", "Description", "Not Submitted", "Fully Graded", "Flagged")
 	maxC := len(exHeaders)
 	maxR := 7 + len(dm.Students) - 1
 	if len(dm.Students) == 0 {
@@ -55,8 +55,8 @@ func (dm *DataManager) ExportFiles() {
 
 	flagColIdx := maxC
 	fgColIdx := maxC - 1
-	descColIdx := maxC - 2
-	nsColIdx := maxC - 3
+	nsColIdx := maxC - 2
+	descColIdx := maxC - 3
 	totColIdx := maxC - 4
 
 	for i, q := range dm.Questions {
@@ -155,6 +155,7 @@ func (dm *DataManager) ExportFiles() {
 		xf.SetColWidth(sheet, colName, colName, 12)
 	}
 	xf.SetColWidth(sheet, descColName, descColName, 50)
+	xf.SetColWidth(sheet, nsColName, nsColName, 14)
 	xf.SetColWidth(sheet, fgColName, fgColName, 14)
 	xf.SetColWidth(sheet, flagColName, flagColName, 12)
 

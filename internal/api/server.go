@@ -213,14 +213,14 @@ func (s *Server) handlePDFView(c *gin.Context) {
 			html += fmt.Sprintf("<td>%.2f</td>", val)
 		}
 		val := statsData["Total Score"].(map[string]float64)[keys[i]]
-		html += fmt.Sprintf("<td>%.2f</td></tr>", val)
+		html += fmt.Sprintf("<td>%.2f</td><td></td><td></td><td></td><td></td></tr>", val)
 	}
 
 	html += "<tr class='header-row'><th>First Name</th><th>Last Name</th><th>Student ID</th>"
 	for _, q := range s.dm.Questions {
 		html += fmt.Sprintf("<th>%s</th>", q)
 	}
-	html += "<th>Total Score</th><th>Not Submitted</th><th>Description</th><th>Fully Graded</th><th>Flagged</th></tr></thead><tbody>"
+	html += "<th>Total Score</th><th>Description</th><th>Not Submitted</th><th>Fully Graded</th><th>Flagged</th></tr></thead><tbody>"
 
 	for _, st := range s.dm.Students {
 		html += "<tr>"
@@ -241,14 +241,14 @@ func (s *Server) handlePDFView(c *gin.Context) {
 		} else {
 			html += fmt.Sprintf("<td>%.2f</td>", st.TotalScore)
 		}
+		desc := strings.ReplaceAll(st.Description, "\n", "<br>")
+		desc = strings.ReplaceAll(desc, "\\n", "<br>")
+		html += fmt.Sprintf("<td class='desc-col'>%s</td>", desc)
 		if st.NotSubmitted {
 			html += "<td>☑</td>"
 		} else {
 			html += "<td>☐</td>"
 		}
-		desc := strings.ReplaceAll(st.Description, "\n", "<br>")
-		desc = strings.ReplaceAll(desc, "\\n", "<br>")
-		html += fmt.Sprintf("<td class='desc-col'>%s</td>", desc)
 		if st.FullyGraded {
 			html += "<td>☑</td>"
 		} else {
