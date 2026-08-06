@@ -164,6 +164,10 @@ func (dm *DataManager) ExportFiles() {
 		for c := 1; c <= maxC; c++ {
 			bold := r <= 6
 			isDesc := (c == descColIdx)
+			isYellow := false
+			if r >= dataStartRow && r-dataStartRow < len(dm.Students) && c <= 3 {
+				isYellow = dm.Students[r-dataStartRow].Flagged
+			}
 			align := &excelize.Alignment{Horizontal: "center", Vertical: "center"}
 			if isDesc && r > 6 {
 				align = &excelize.Alignment{Horizontal: "right", Vertical: "top", WrapText: true}
@@ -196,7 +200,7 @@ func (dm *DataManager) ExportFiles() {
 			if c == maxC {
 				right = 5
 			}
-			key := fmt.Sprintf("%v_%v_%d_%d_%d_%d", bold, isDesc, top, bottom, left, right)
+			key := fmt.Sprintf("%v_%v_%v_%d_%d_%d_%d", bold, isDesc, isYellow, top, bottom, left, right)
 			sID, exists := styleCache[key]
 			if !exists {
 				border := []excelize.Border{
@@ -209,11 +213,15 @@ func (dm *DataManager) ExportFiles() {
 				if bold {
 					fnt.Bold = true
 				}
-				sID, _ = xf.NewStyle(&excelize.Style{
+				cellStyle := &excelize.Style{
 					Font:      fnt,
 					Alignment: align,
 					Border:    border,
-				})
+				}
+				if isYellow {
+					cellStyle.Fill = excelize.Fill{Type: "pattern", Color: []string{"FFFF00"}, Pattern: 1}
+				}
+				sID, _ = xf.NewStyle(cellStyle)
 				styleCache[key] = sID
 			}
 			colName, _ := excelize.ColumnNumberToName(c)
