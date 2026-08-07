@@ -440,46 +440,60 @@
     </div>
 
     <script>
-        let appData = { questions: [], max_grades: [], students: [], stats: {} };
-        let currentIndex = 0;
-        let sessionEdits = {};
-        let lockStates = {};
-        let isDescLocked = false;
+        const state = {
+            appData: { questions: [], max_grades: [], students: [], stats: {} },
+            currentIndex: 0,
+            sessionEdits: {},
+            lockStates: {},
+            isDescLocked: false,
+        };
+
+        const el = id => document.getElementById(id);
+        const setText = (id, text) => { el(id).innerText = text; };
+        const setVal = (id, val) => { el(id).value = val; };
+        const getVal = id => el(id).value;
+        const isChecked = id => el(id).checked;
+        const setChecked = (id, v) => { el(id).checked = v; };
+
+        const currentStudent = () => state.appData.students[state.currentIndex];
+        const hasSessionEdit = id => !!state.sessionEdits[id];
+
+        function gradeIsFilled(v) {
+            return v !== "" && v !== undefined && v !== null && !isNaN(parseFloat(v));
+        }
+
+        function gradesAllFilled(grades) {
+            return state.appData.questions.length > 0 &&
+                state.appData.questions.every(q => gradeIsFilled(grades[q]));
+        }
 
         function isStudentFullyGraded(s) {
             if (s.not_submitted) return false;
-            if (sessionEdits[s.id]) {
-                if (sessionEdits[s.id].not_submitted) return false;
-                const g = sessionEdits[s.id].grades;
-                return appData.questions.length > 0 && appData.questions.every(q => {
-                    const v = g[q];
-                    return v !== "" && v !== undefined && v !== null && !isNaN(parseFloat(v));
-                });
+            if (state.sessionEdits[s.id]) {
+                if (state.sessionEdits[s.id].not_submitted) return false;
+                return gradesAllFilled(state.sessionEdits[s.id].grades);
             }
             return !!s.fully_graded;
         }
 
         function payloadFullyGraded(payload) {
             if (payload.not_submitted) return false;
-            return appData.questions.length > 0 && appData.questions.every(q => {
-                const v = payload.grades[q];
-                return v !== "" && v !== undefined && v !== null && !isNaN(parseFloat(v));
-            });
+            return gradesAllFilled(payload.grades);
         }
 
         function updateFgBadge() {
-            const badge = document.getElementById('fgBadge');
+            const badge = el('fgBadge');
             if (!badge) return;
-            const notSub = document.getElementById('cbNotSubmitted').checked;
-            if (notSub) {
+            if (isChecked('cbNotSubmitted')) {
                 badge.className = 'fg-badge nosub';
                 badge.textContent = '— Marked Absent';
                 return;
             }
-            const allFilled = appData.questions.length > 0 && appData.questions.every(q => {
-                const el = document.getElementById(`q_${q}`);
-                return el && el.value.trim() !== "" && !isNaN(parseFloat(el.value));
-            });
+            const allFilled = state.appData.questions.length > 0 &&
+                state.appData.questions.every(q => {
+                    const input = el(`q_${q}`);
+                    return input && gradeIsFilled(input.value.trim());
+                });
             if (allFilled) {
                 badge.className = 'fg-badge complete';
                 badge.textContent = '✓ Fully Graded';
@@ -490,10 +504,9 @@
         }
 
         function updateFlagButton() {
-            const student = appData.students[currentIndex];
-            const btn = document.getElementById('btnFlag');
+            const btn = el('btnFlag');
             if (!btn) return;
-            if (student.flagged) {
+            if (currentStudent().flagged) {
                 btn.classList.add('flagged');
                 btn.innerText = '🚩 Flagged for Review';
             } else {
@@ -503,7 +516,7 @@
         }
 
         async function toggleFlag() {
-            const student = appData.students[currentIndex];
+            const student = currentStudent();
             const newState = !student.flagged;
             const res = await fetch(`/api/student/${student.id}/flag`, {
                 method: 'POST',
@@ -519,37 +532,32 @@
 
         function toggleTheme() {
             const html = document.documentElement;
-            const btn = document.getElementById('btnTheme');
             if (html.getAttribute('data-theme') === 'dark') {
                 html.setAttribute('data-theme', 'light');
-                btn.innerText = '🌙';
+                el('btnTheme').innerText = '🌙';
             } else {
                 html.setAttribute('data-theme', 'dark');
-                btn.innerText = '☀️';
+                el('btnTheme').innerText = '☀️';
             }
         }
 
         async function initApp() {
             const res = await fetch('/api/init');
-            appData = await res.json();
-
-            appData.questions.forEach(q => lockStates[q] = false);
-
+            state.appData = await res.json();
+            state.appData.questions.forEach(q => state.lockStates[q] = false);
             buildForm();
             updateDropdown();
             renderStats();
-
-            const firstUnsub = appData.students.findIndex(s => !s.is_submitted);
-            currentIndex = firstUnsub !== -1 ? firstUnsub : 0;
-            loadStudent(currentIndex);
+            const firstUnsub = state.appData.students.findIndex(s => !s.is_submitted);
+            state.currentIndex = firstUnsub !== -1 ? firstUnsub : 0;
+            loadStudent(state.currentIndex);
         }
 
         function buildForm() {
-            const formArea = document.getElementById('formArea');
+            const formArea = el('formArea');
             formArea.innerHTML = '';
-
-            appData.questions.forEach((q, i) => {
-                const maxG = appData.max_grades[i];
+            state.appData.questions.forEach((q, i) => {
+                const maxG = state.appData.max_grades[i];
                 formArea.innerHTML += `
                     <div class="q-row">
                         <span style="font-size: 14px;">${q} (out of ${maxG}):</span>
@@ -562,52 +570,72 @@
             });
         }
 
-        function clampValue(el, maxVal) {
-            if (el.value === "") return;
-            let val = parseFloat(el.value);
-            if (val > maxVal) el.value = maxVal;
-            if (val < 0) el.value = 0;
+        function clampValue(input, maxVal) {
+            if (input.value === "") return;
+            let val = parseFloat(input.value);
+            if (val > maxVal) input.value = maxVal;
+            if (val < 0) input.value = 0;
+        }
+
+        function studentStatusText(s) {
+            if (hasSessionEdit(s.id)) return isStudentFullyGraded(s) ? "✏️ Unsaved ✓" : "✏️ Unsaved";
+            if (s.not_submitted) return "⛔ Absent";
+            if (s.is_submitted) return isStudentFullyGraded(s) ? "✅ Complete" : "🟡 Partial";
+            return "⏳ Not Submitted";
         }
 
         function updateDropdown() {
-            const select = document.getElementById('studentSelect');
+            const select = el('studentSelect');
             select.innerHTML = '';
-            appData.students.forEach(s => {
-                let icon = s.has_pdf ? "📄" : "❌";
-                let flagIcon = s.flagged ? "🚩 " : "";
-                let stat;
-                if (sessionEdits[s.id]) {
-                    stat = isStudentFullyGraded(s) ? "✏️ Unsaved ✓" : "✏️ Unsaved";
-                } else if (s.not_submitted) {
-                    stat = "⛔ Absent";
-                } else if (s.is_submitted) {
-                    stat = isStudentFullyGraded(s) ? "✅ Complete" : "🟡 Partial";
-                } else {
-                    stat = "⏳ Not Submitted";
-                }
-                select.innerHTML += `<option value="${s.index}">${flagIcon}${icon} | ${stat} | ${s.name} ${s.surname}</option>`;
+            state.appData.students.forEach(s => {
+                const icon = s.has_pdf ? "📄" : "❌";
+                const flagIcon = s.flagged ? "🚩 " : "";
+                select.innerHTML += `<option value="${s.index}">${flagIcon}${icon} | ${studentStatusText(s)} | ${s.name} ${s.surname}</option>`;
             });
-            select.value = currentIndex;
+            select.value = state.currentIndex;
+        }
+
+        async function fetchStudentData(student) {
+            const res = await fetch(`/api/student/${student.id}`);
+            return await res.json();
+        }
+
+        function renderStudentInfo(student) {
+            setText('lblCount', `Student ${state.currentIndex + 1}/${state.appData.students.length}`);
+            setText('lblName', `${student.name} ${student.surname}`);
+            setText('lblId', `ID: ${student.id}`);
+            el('studentSelect').value = state.currentIndex;
+        }
+
+        function applyGradesToForm(student, grades, desc, notSub) {
+            setChecked('cbNotSubmitted', notSub);
+            setVal('txtComments', desc);
+            state.appData.questions.forEach(q => {
+                const input = el(`q_${q}`);
+                if (hasSessionEdit(student.id)) {
+                    input.value = grades[q] !== undefined ? grades[q] : "";
+                } else if (student.is_submitted) {
+                    input.value = (grades[q] === 0) ? "0" : (grades[q] || "");
+                } else {
+                    input.value = "";
+                }
+                input.disabled = (!student.has_pdf || notSub) || state.lockStates[q];
+            });
+            el('txtComments').disabled = state.isDescLocked;
         }
 
         async function loadStudent(idx) {
-            currentIndex = parseInt(idx);
-            const student = appData.students[currentIndex];
+            state.currentIndex = parseInt(idx);
+            const student = currentStudent();
+            renderStudentInfo(student);
 
-            document.getElementById('lblCount').innerText = `Student ${currentIndex + 1}/${appData.students.length}`;
-            document.getElementById('lblName').innerText = `${student.name} ${student.surname}`;
-            document.getElementById('lblId').innerText = `ID: ${student.id}`;
-            document.getElementById('studentSelect').value = currentIndex;
-
-            let grades = {}, desc = "", notSub = false;
-
-            if (sessionEdits[student.id]) {
-                grades = sessionEdits[student.id].grades;
-                desc = sessionEdits[student.id].comments;
-                notSub = sessionEdits[student.id].not_submitted;
+            let grades, desc, notSub;
+            if (hasSessionEdit(student.id)) {
+                grades = state.sessionEdits[student.id].grades;
+                desc = state.sessionEdits[student.id].comments;
+                notSub = state.sessionEdits[student.id].not_submitted;
             } else {
-                const res = await fetch(`/api/student/${student.id}`);
-                const data = await res.json();
+                const data = await fetchStudentData(student);
                 grades = data.grades;
                 desc = data.description;
                 notSub = data.not_submitted;
@@ -616,289 +644,235 @@
                 student.flagged = data.flagged;
             }
 
-            document.getElementById('cbNotSubmitted').checked = notSub;
-            document.getElementById('txtComments').value = desc;
-
-            appData.questions.forEach(q => {
-                const input = document.getElementById(`q_${q}`);
-                if (sessionEdits[student.id]) {
-                    input.value = grades[q] !== undefined ? grades[q] : "";
-                } else if (student.is_submitted) {
-                    input.value = (grades[q] === 0) ? "0" : (grades[q] || "");
-                } else {
-                    input.value = "";
-                }
-                input.disabled = (!student.has_pdf || notSub) || lockStates[q];
-            });
-
-            document.getElementById('txtComments').disabled = isDescLocked;
-
+            applyGradesToForm(student, grades, desc, notSub);
             updatePdfVisibility();
             updateStatusLabel();
             updateFlagButton();
         }
 
         function updatePdfVisibility() {
-            const student = appData.students[currentIndex];
-            const notSub = document.getElementById('cbNotSubmitted').checked;
-            const pdfViewer = document.getElementById('pdfViewer');
-            const noPdfOverlay = document.getElementById('noPdfOverlay');
+            const student = currentStudent();
+            const notSub = isChecked('cbNotSubmitted');
+            const pdfViewer = el('pdfViewer');
+            const noPdfOverlay = el('noPdfOverlay');
 
             if (student.has_pdf) {
                 const targetSrc = `/api/pdf/${student.id}`;
-                if (pdfViewer.getAttribute('src') !== targetSrc) {
-                    pdfViewer.setAttribute('src', targetSrc);
-                }
+                if (pdfViewer.getAttribute('src') !== targetSrc) pdfViewer.setAttribute('src', targetSrc);
                 pdfViewer.style.display = 'block';
                 noPdfOverlay.style.display = 'none';
             } else {
-                if (pdfViewer.getAttribute('src') !== '') {
-                    pdfViewer.setAttribute('src', '');
-                }
+                if (pdfViewer.getAttribute('src') !== '') pdfViewer.setAttribute('src', '');
                 pdfViewer.style.display = 'none';
                 noPdfOverlay.style.display = 'flex';
-                if (notSub) {
-                    document.getElementById('noPdfText').innerText = 'Student is marked as Absent.';
-                    document.getElementById('btnUploadPdf').style.display = 'none';
-                } else {
-                    document.getElementById('noPdfText').innerText = 'No file uploaded for this student.';
-                    document.getElementById('btnUploadPdf').style.display = 'block';
-                }
+                setText('noPdfText', notSub ? 'Student is marked as Absent.' : 'No file uploaded for this student.');
+                el('btnUploadPdf').style.display = notSub ? 'none' : 'block';
             }
         }
 
         async function uploadPDF(event) {
             const file = event.target.files[0];
             if (!file) return;
-
-            const student = appData.students[currentIndex];
+            const student = currentStudent();
             const formData = new FormData();
             formData.append('file', file);
-
-            const res = await fetch(`/api/student/${student.id}/upload`, {
-                method: 'POST',
-                body: formData
-            });
-
+            const res = await fetch(`/api/student/${student.id}/upload`, { method: 'POST', body: formData });
             if (res.ok) {
                 student.has_pdf = true;
                 updateDropdown();
-                loadStudent(currentIndex);
+                loadStudent(state.currentIndex);
             }
             event.target.value = '';
         }
 
-        function inputChanged() {
-            const student = appData.students[currentIndex];
-            let currentGrades = {};
+        function readFormGrades() {
+            const grades = {};
             let total = 0;
-
-            appData.questions.forEach(q => {
-                const raw = document.getElementById(`q_${q}`).value.trim();
-                if (raw === "") {
-                    currentGrades[q] = "";
+            state.appData.questions.forEach(q => {
+                const raw = getVal(`q_${q}`).trim();
+                const num = parseFloat(raw);
+                if (raw === "" || isNaN(num)) {
+                    grades[q] = "";
                 } else {
-                    const num = parseFloat(raw);
-                    if (isNaN(num)) {
-                        currentGrades[q] = "";
-                    } else {
-                        currentGrades[q] = num;
-                        total += num;
-                    }
+                    grades[q] = num;
+                    total += num;
                 }
             });
+            return { grades, total };
+        }
 
-            sessionEdits[student.id] = {
-                grades: currentGrades,
-                comments: document.getElementById('txtComments').value,
-                not_submitted: document.getElementById('cbNotSubmitted').checked
+        function inputChanged() {
+            const student = currentStudent();
+            const { grades, total } = readFormGrades();
+            state.sessionEdits[student.id] = {
+                grades,
+                comments: getVal('txtComments'),
+                not_submitted: isChecked('cbNotSubmitted'),
             };
-
             updateDropdown();
             updateStatusLabel(total);
             updatePdfVisibility();
         }
 
+        function statusLabelState() {
+            const hasEdit = hasSessionEdit(currentStudent().id);
+            const notSub = isChecked('cbNotSubmitted');
+            if (notSub) return { text: hasEdit ? "Status: Did Not Submit - Unsaved" : "Status: Did Not Submit", cls: hasEdit ? "text-yellow" : "text-red" };
+            if (hasEdit) return { text: "Status: Unsaved Changes", cls: "text-yellow" };
+            if (currentStudent().is_submitted) return { text: "Status: Submitted", cls: "text-green" };
+            return { text: "Status: Not Submitted Yet", cls: "text-red" };
+        }
+
+        function calculateTotalFromForm() {
+            let total = 0;
+            state.appData.questions.forEach(q => total += parseFloat(getVal(`q_${q}`)) || 0);
+            return total;
+        }
+
         function updateStatusLabel(totalCalc = null) {
-            const student = appData.students[currentIndex];
-            const hasEdit = !!sessionEdits[student.id];
-            const notSub = document.getElementById('cbNotSubmitted').checked;
+            const st = statusLabelState();
+            setText('lblStatus', st.text);
+            el('lblStatus').className = st.cls;
 
-            const lblStatus = document.getElementById('lblStatus');
-            const lblTotal = document.getElementById('lblTotal');
+            if (totalCalc === null) totalCalc = calculateTotalFromForm();
+            setText('lblTotal', `Total: ${totalCalc.toFixed(2)}`);
 
-            if (notSub) {
-                lblStatus.innerText = hasEdit ? "Status: Did Not Submit - Unsaved" : "Status: Did Not Submit";
-                lblStatus.className = hasEdit ? "text-yellow" : "text-red";
-            } else {
-                if (hasEdit) {
-                    lblStatus.innerText = "Status: Unsaved Changes";
-                    lblStatus.className = "text-yellow";
-                } else if (student.is_submitted) {
-                    lblStatus.innerText = "Status: Submitted";
-                    lblStatus.className = "text-green";
-                } else {
-                    lblStatus.innerText = "Status: Not Submitted Yet";
-                    lblStatus.className = "text-red";
-                }
-            }
-
-            if (totalCalc === null) {
-                totalCalc = 0;
-                appData.questions.forEach(q => totalCalc += parseFloat(document.getElementById(`q_${q}`).value) || 0);
-            }
-            lblTotal.innerText = `Total: ${totalCalc.toFixed(2)}`;
-
-            const btnSubmit = document.getElementById('btnSubmit');
-            if (hasEdit) {
+            const btnSubmit = el('btnSubmit');
+            if (hasSessionEdit(currentStudent().id)) {
                 btnSubmit.classList.add('saved');
                 btnSubmit.innerText = "Submit Changes";
             } else {
                 btnSubmit.classList.remove('saved');
                 btnSubmit.innerText = "Submit";
             }
-
             updateFgBadge();
         }
 
         async function submitGrade() {
-            const student = appData.students[currentIndex];
-            if (!sessionEdits[student.id]) {
-                inputChanged();
-            }
-
-            const payload = sessionEdits[student.id];
+            const student = currentStudent();
+            if (!hasSessionEdit(student.id)) inputChanged();
+            const payload = state.sessionEdits[student.id];
 
             const res = await fetch(`/api/student/${student.id}/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
             });
-
             if (res.ok) {
                 const data = await res.json();
-                appData.stats = data.stats;
-
+                state.appData.stats = data.stats;
                 student.is_submitted = true;
                 student.not_submitted = payload.not_submitted;
                 student.fully_graded = payloadFullyGraded(payload);
-
-                delete sessionEdits[student.id];
-
-                const btnSubmit = document.getElementById('btnSubmit');
-                btnSubmit.innerText = "Saved!";
+                delete state.sessionEdits[student.id];
+                el('btnSubmit').innerText = "Saved!";
                 setTimeout(() => { updateStatusLabel(); updateDropdown(); renderStats(); }, 1000);
             }
         }
 
         function clearInputs() {
-            appData.questions.forEach(q => {
-                if (!lockStates[q]) document.getElementById(`q_${q}`).value = "";
+            state.appData.questions.forEach(q => {
+                if (!state.lockStates[q]) setVal(`q_${q}`, "");
             });
-            if (!isDescLocked) document.getElementById('txtComments').value = "";
+            if (!state.isDescLocked) setVal('txtComments', "");
             inputChanged();
         }
 
+        function setLockUI(q, locked) {
+            state.lockStates[q] = locked;
+            el(`lock_${q}`).innerText = locked ? "🔒" : "🔓";
+            el(`q_${q}`).disabled = locked;
+        }
+
         function toggleLock(q) {
-            lockStates[q] = !lockStates[q];
-            document.getElementById(`lock_${q}`).innerText = lockStates[q] ? "🔒" : "🔓";
-            document.getElementById(`q_${q}`).disabled = lockStates[q];
+            setLockUI(q, !state.lockStates[q]);
             syncLockAll();
         }
 
         function toggleDescLock() {
-            isDescLocked = !isDescLocked;
-            document.getElementById('btnLockDesc').innerText = isDescLocked ? "🔒" : "🔓";
-            document.getElementById('txtComments').disabled = isDescLocked;
+            state.isDescLocked = !state.isDescLocked;
+            el('btnLockDesc').innerText = state.isDescLocked ? "🔒" : "🔓";
+            el('txtComments').disabled = state.isDescLocked;
             syncLockAll();
         }
 
         function toggleLockAll() {
-            const targetState = !(Object.values(lockStates).every(v => v) && isDescLocked);
-
-            appData.questions.forEach(q => {
-                lockStates[q] = targetState;
-                document.getElementById(`lock_${q}`).innerText = targetState ? "🔒" : "🔓";
-                document.getElementById(`q_${q}`).disabled = targetState;
-            });
-
-            isDescLocked = targetState;
-            document.getElementById('btnLockDesc').innerText = targetState ? "🔒" : "🔓";
-            document.getElementById('txtComments').disabled = targetState;
-
+            const target = !(Object.values(state.lockStates).every(v => v) && state.isDescLocked);
+            state.appData.questions.forEach(q => setLockUI(q, target));
+            state.isDescLocked = target;
+            el('btnLockDesc').innerText = target ? "🔒" : "🔓";
+            el('txtComments').disabled = target;
             syncLockAll();
         }
 
         function syncLockAll() {
-            const allLocked = Object.values(lockStates).every(v => v) && isDescLocked;
-            document.getElementById('btnLockAll').innerText = allLocked ? "🔓 Unlock All" : "🔒 Lock All";
+            const allLocked = Object.values(state.lockStates).every(v => v) && state.isDescLocked;
+            el('btnLockAll').innerText = allLocked ? "🔓 Unlock All" : "🔒 Lock All";
         }
 
-        function goPrev() { if(currentIndex > 0) loadStudent(currentIndex - 1); }
-        function goNext() { if(currentIndex < appData.students.length - 1) loadStudent(currentIndex + 1); }
+        function goPrev() { if (state.currentIndex > 0) loadStudent(state.currentIndex - 1); }
+        function goNext() { if (state.currentIndex < state.appData.students.length - 1) loadStudent(state.currentIndex + 1); }
 
-        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('hidden'); }
-        function togglePDF() { document.getElementById('pdfArea').classList.toggle('hidden'); }
-        function toggleStats() { document.getElementById('statsSidebar').classList.toggle('active'); }
+        function toggleSidebar() { el('sidebar').classList.toggle('hidden'); }
+        function togglePDF() { el('pdfArea').classList.toggle('hidden'); }
+        function toggleStats() { el('statsSidebar').classList.toggle('active'); }
 
         function openPDFTab() {
-            const student = appData.students[currentIndex];
-            if(student.has_pdf) window.open(`/api/pdf/${student.id}`, '_blank');
+            const student = currentStudent();
+            if (student.has_pdf) window.open(`/api/pdf/${student.id}`, '_blank');
         }
 
         function toggleSearch() {
-            const container = document.getElementById('searchContainer');
+            const container = el('searchContainer');
             container.classList.toggle('active');
-            if(container.classList.contains('active')) document.getElementById('searchInput').focus();
+            if (container.classList.contains('active')) el('searchInput').focus();
+        }
+
+        function matchesQuery(s, query) {
+            return s.name.toLowerCase().includes(query) ||
+                s.surname.toLowerCase().includes(query) ||
+                s.id.includes(query);
         }
 
         function handleSearch() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            const resultsDiv = document.getElementById('searchResults');
+            const query = getVal('searchInput').toLowerCase();
+            const resultsDiv = el('searchResults');
             resultsDiv.innerHTML = '';
-
             if (!query) { resultsDiv.style.display = 'none'; return; }
 
-            const filtered = appData.students.filter(s =>
-                s.name.toLowerCase().includes(query) ||
-                s.surname.toLowerCase().includes(query) ||
-                s.id.includes(query)
-            );
+            const filtered = state.appData.students.filter(s => matchesQuery(s, query));
+            if (filtered.length === 0) { resultsDiv.style.display = 'none'; return; }
 
-            if(filtered.length > 0) {
-                resultsDiv.style.display = 'block';
-                filtered.forEach(s => {
-                    const div = document.createElement('div');
-                    div.className = 'search-item';
-                    div.innerText = `${s.name} ${s.surname} - ${s.id}`;
-                    div.onclick = () => {
-                        loadStudent(s.index);
-                        document.getElementById('searchInput').value = '';
-                        resultsDiv.style.display = 'none';
-                        document.getElementById('searchContainer').classList.remove('active');
-                    };
-                    resultsDiv.appendChild(div);
-                });
-            } else {
-                resultsDiv.style.display = 'none';
-            }
+            resultsDiv.style.display = 'block';
+            filtered.forEach(s => {
+                const div = document.createElement('div');
+                div.className = 'search-item';
+                div.innerText = `${s.name} ${s.surname} - ${s.id}`;
+                div.onclick = () => {
+                    loadStudent(s.index);
+                    setVal('searchInput', '');
+                    resultsDiv.style.display = 'none';
+                    el('searchContainer').classList.remove('active');
+                };
+                resultsDiv.appendChild(div);
+            });
         }
 
         function renderStats() {
-            const html = Object.keys(appData.stats.data).map(col => `
+            const html = Object.keys(state.appData.stats.data).map(col => `
                 <div class="stat-card">
                     <div class="text-blue" style="font-weight: bold; margin-bottom: 4px;">${col}</div>
                     <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                        <span>Avg: ${appData.stats.data[col].avg}</span>
-                        <span>Med: ${appData.stats.data[col].med}</span>
+                        <span>Avg: ${state.appData.stats.data[col].avg}</span>
+                        <span>Med: ${state.appData.stats.data[col].med}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                        <span>Max: ${appData.stats.data[col].max}</span>
-                        <span>Min: ${appData.stats.data[col].min}</span>
+                        <span>Max: ${state.appData.stats.data[col].max}</span>
+                        <span>Min: ${state.appData.stats.data[col].min}</span>
                     </div>
                 </div>
             `).join('');
-            document.getElementById('statsContent').innerHTML = html;
+            el('statsContent').innerHTML = html;
         }
 
         window.onload = initApp;
