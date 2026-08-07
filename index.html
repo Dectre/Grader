@@ -305,6 +305,19 @@
             font-size: 16px;
         }
 
+        .max-btn {
+            background: var(--btn-bg);
+            color: var(--green);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            font-family: inherit;
+        }
+        .max-btn:hover { background: var(--btn-hover); }
+
         .fg-badge {
             display: inline-flex;
             align-items: center;
@@ -561,6 +574,7 @@
                     <div class="q-row">
                         <span style="font-size: 14px;">${q} (out of ${maxG}):</span>
                         <div style="display: flex; align-items: center; gap: 5px;">
+                            <button class="max-btn" onclick="setMax('${q}', ${maxG})">Max</button>
                             <input type="number" step="0.25" min="0" max="${maxG}" class="q-input" id="q_${q}" oninput="clampValue(this, ${maxG}); inputChanged()">
                             <button class="lock-btn" id="lock_${q}" onclick="toggleLock('${q}')">🔓</button>
                         </div>
@@ -884,6 +898,12 @@
             const saved = localStorage.getItem('grader-theme') || 'dark';
             document.documentElement.setAttribute('data-theme', saved);
             el('btnTheme').innerText = saved === 'dark' ? '☀️' : '🌙';
+        }
+
+        function setMax(q, maxG) {
+            if (state.lockStates[q]) return;
+            el(`q_${q}`).value = maxG;
+            inputChanged();
         }
 
         window.onload = initApp;
