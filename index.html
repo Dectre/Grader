@@ -88,9 +88,9 @@
             width: 16px; height: 64px;
             background: var(--bg-panel); color: var(--text-main);
             border: 1px solid var(--border); border-left: none;
-            border-radius: 0 6px 6px 0; cursor: pointer;
+            border-radius: 0 6px 6px 0; cursor: col-resize;
             font-size: 10px; display: flex; align-items: center; justify-content: center;
-            transition: left .2s; padding: 0;
+            touch-action: none; padding: 0;
         }
         .side-handle:hover { background: var(--btn-hover); }
 
@@ -437,7 +437,6 @@
             applySidebarWidth();
             const res = await fetch('/api/init');
             state.appData = await res.json();
-            state.appData.questions.forEach(q => state.lockStates[q] = false);
             buildForm();
             updateDropdown();
             renderStats();
@@ -505,6 +504,7 @@
         function applyGradesToForm(student, grades, desc, notSub) {
             setChecked('cbNotSubmitted', notSub);
             setVal('txtComments', desc);
+            const store = storeFor(student.id);
             state.appData.questions.forEach(q => {
                 const input = el(`q_${q}`);
                 if (hasSessionEdit(student.id)) {
@@ -514,9 +514,9 @@
                 } else {
                     input.value = "";
                 }
-                input.disabled = (!student.has_pdf || notSub) || state.lockStates[q];
+                input.disabled = (!student.has_pdf || notSub) || !!store[q];
             });
-            el('txtComments').disabled = state.isDescLocked;
+            el('txtComments').disabled = !!store.desc;
         }
 
         async function loadStudent(idx) {
@@ -540,6 +540,7 @@
             }
 
             applyGradesToForm(student, grades, desc, notSub);
+            refreshLockUI();
             updatePdfVisibility();
             updateStatusLabel();
             updateFlagButton();
@@ -667,43 +668,45 @@
         }
 
         function clearInputs() {
-            state.appData.questions.forEach(q => {
-                if (!state.lockStates[q]) setVal(`q_${q}`, "");
-            });
-            if (!state.isDescLocked) setVal('txtComments', "");
+            const store = storeFor(currentStudent().id);
+            state.appData.questions.forEach(q => { if (!store[q]) setVal(`q_${q}`, ""); });
+            if (!store.desc) setVal('txtComments', "");
             inputChanged();
         }
 
         function setLockUI(q, locked) {
-            state.lockStates[q] = locked;
+            storeFor(currentStudent().id)[q] = locked;
             el(`lock_${q}`).innerText = locked ? "🔒" : "🔓";
-            el(`q_${q}`).disabled = locked;
+            el(`q_${q}`).disabled = locked || !currentStudent().has_pdf || isChecked('cbNotSubmitted');
         }
         function toggleLock(q) {
             setLockUI(q, !state.lockStates[q]);
             syncLockAll();
         }
         function toggleDescLock() {
-            state.isDescLocked = !state.isDescLocked;
-            el('btnLockDesc').innerText = state.isDescLocked ? "🔒" : "🔓";
-            el('txtComments').disabled = state.isDescLocked;
+            const store = storeFor(currentStudent().id);
+            store.desc = !store.desc;
+            el('btnLockDesc').innerText = store.desc ? "🔒" : "🔓";
+            el('txtComments').disabled = store.desc;
             syncLockAll();
         }
         function toggleLockAll() {
-            const target = !(Object.values(state.lockStates).every(v => v) && state.isDescLocked);
+            const store = storeFor(currentStudent().id);
+            const target = !(state.appData.questions.every(q => store[q]) && store.desc);
             state.appData.questions.forEach(q => setLockUI(q, target));
-            state.isDescLocked = target;
+            store.desc = target;
             el('btnLockDesc').innerText = target ? "🔒" : "🔓";
             el('txtComments').disabled = target;
             syncLockAll();
         }
         function syncLockAll() {
-            const allLocked = Object.values(state.lockStates).every(v => v) && state.isDescLocked;
+            const store = storeFor(currentStudent().id);
+            const allLocked = state.appData.questions.every(q => store[q]) && store.desc;
             el('btnLockAll').innerText = allLocked ? "🔓 Unlock All" : "🔒 Lock All";
         }
 
         function setMax(q, maxG) {
-            if (state.lockStates[q]) return;
+            if (storeFor(currentStudent().id)[q]) return;
             el(`q_${q}`).value = maxG;
             inputChanged();
         }
@@ -825,6 +828,20 @@
             if (!s) return;
             const total = el('lblTotal').innerText.replace('Total: ', '');
             el('infoMini').innerText = `${s.name} ${s.surname} · ${s.id} · ${total}`;
+        }
+
+        function storeFor(id) {
+            if (!state.lockStates[id]) state.lockStates[id] = {};
+            return state.lockStates[id];
+        }
+
+        function refreshLockUI() {
+            const store = storeFor(currentStudent().id);
+            state.appData.questions.forEach(q => {
+                el(`lock_${q}`).innerText = store[q] ? "🔒" : "🔓";
+            });
+            el('btnLockDesc').innerText = store.desc ? "🔒" : "🔓";
+            syncLockAll();
         }
 
         window.onload = initApp;
