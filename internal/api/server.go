@@ -51,6 +51,7 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/api/assignment/:name/files/:kind", s.handleGetDataFile)
 	s.router.POST("/api/assignment/:name/files/:kind", s.handleUploadDataFile)
 	s.router.POST("/api/assignment/:name/files/:kind/text", s.handleSetDataText)
+	s.router.POST("/api/assignment/:name/pdfs", s.handleUploadPDFs)
 
 	grading := s.router.Group("/", s.requireDM())
 	grading.GET("/api/init", s.handleInit)

@@ -144,3 +144,35 @@ func (s *Server) handleSetDataText(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"status": "success"})
 }
+
+func (s *Server) handleUploadPDFs(c *gin.Context) {
+	name := filepath.Base(c.Param("name"))
+	pdfDir := filepath.Join(manager.AssignmentPath(name), "PDFs")
+	form, _ := c.MultipartForm()
+	if form == nil {
+		c.JSON(400, gin.H{"error": "No files"})
+		return
+	}
+	added := 0
+	for _, fh := range form.File["files"] {
+		lower := strings.ToLower(fh.Filename)
+		if strings.HasSuffix(lower, ".zip") {
+			tmp := filepath.Join(os.TempDir(), fh.Filename)
+			if err := c.SaveUploadedFile(fh, tmp); err != nil {
+				continue
+			}
+			n, _ := manager.ImportZipToPDFs(tmp, pdfDir)
+			os.Remove(tmp)
+			added += n
+		} else if strings.HasSuffix(lower, ".pdf") {
+			src, err := fh.Open()
+			if err != nil {
+				continue
+			}
+			manager.SavePDFToDir(src, pdfDir, fh.Filename)
+			src.Close()
+			added++
+		}
+	}
+	c.JSON(200, gin.H{"status": "success", "added": added})
+}

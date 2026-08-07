@@ -29,7 +29,7 @@ button.primary{background:var(--blue);color:#fff;border:none;border-radius:6px;p
 .msg.ok{display:block;background:rgba(63,185,80,.12);color:var(--green);}
 .empty{color:var(--muted);text-align:center;padding:20px 0;}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:10;}
-.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;width:460px;display:flex;flex-direction:column;gap:14px;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;width:460px;display:flex;flex-direction:column;gap:14px;max-height:85vh;overflow-y:auto;}
 .setup-row{display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:6px;padding:10px;}
 .editor{display:none;flex-direction:column;gap:8px;}
 .editor textarea{width:100%;height:160px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-family:monospace;font-size:12px;resize:vertical;}
@@ -77,6 +77,13 @@ button.primary{background:var(--blue);color:#fff;border:none;border-radius:6px;p
         <button class="icon-btn" onclick="editKind('students')">✏️ Edit</button>
       </div>
       <input type="file" id="studentsFile" accept=".csv" style="display:none" onchange="uploadKind('students', this)">
+    </div>
+    <div class="setup-row">
+      <span>📄 PDFs (a zip or multiple PDFs)</span>
+      <div class="row">
+        <button class="icon-btn" onclick="document.getElementById('pdfFiles').click()">⬆️ Upload</button>
+      </div>
+      <input type="file" id="pdfFiles" accept=".zip,.pdf" multiple style="display:none" onchange="uploadPDFs(this)">
     </div>
     <div class="editor" id="editorBox">
       <div id="editorLabel" style="font-weight:bold;margin-bottom:6px;"></div>
@@ -233,7 +240,7 @@ function uploadKind(kind, input) {
     const fd = new FormData();
     fd.append('file', file);
     fetch(`/api/assignment/${setupName}/files/${kind}`, { method: 'POST', body: fd })
-        .then(() => { log('✅ ' + kind + '.csv uploaded.', 'ok'); input.value = ''; });
+        .then(() => { log('✅ ' + kind + '.csv uploaded for "' + setupName + '".', 'ok'); input.value = ''; });
 }
 
 async function editKind(kind) {
@@ -252,8 +259,17 @@ async function saveEditor() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content })
     });
-    log('✅ ' + editorKind + '.csv saved.', 'ok');
+    log('✅ ' + editorKind + '.csv saved for "' + setupName + '".', 'ok');
     closeEditor();
+}
+
+function uploadPDFs(input) {
+    if (!input.files.length) return;
+    const fd = new FormData();
+    for (const f of input.files) fd.append('files', f);
+    fetch(`/api/assignment/${setupName}/pdfs`, { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => { log('✅ ' + (d.added || 0) + ' PDF(s) added to "' + setupName + '".', 'ok'); input.value = ''; });
 }
 
 applySavedTheme();
