@@ -102,3 +102,16 @@ func hasDataDir(name string) bool {
 	_, err := os.Stat(filepath.Join(assignmentsDir, name, "Data"))
 	return err == nil
 }
+
+func GetAssignments() []Assignment {
+	return loadRegistry().Assignments
+}
+
+func AssignmentExists(name string) bool {
+	for _, a := range loadRegistry().Assignments {
+		if a.Name == name {
+			return true
+		}
+	}
+	return false
+}

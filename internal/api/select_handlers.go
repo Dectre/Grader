@@ -1,7 +1,9 @@
 package api
 
 import (
+	"net/http"
 	"path/filepath"
+	"strings"
 
 	"grader/internal/manager"
 
@@ -22,20 +24,30 @@ func (s *Server) handleHome(c *gin.Context) {
 }
 
 func (s *Server) handleListAssignments(c *gin.Context) {
-	c.JSON(200, gin.H{"assignments": manager.ListAssignments()})
+	c.JSON(200, gin.H{"assignments": manager.GetAssignments()})
 }
 
 func (s *Server) handleCreateAssignment(c *gin.Context) {
 	var body struct {
 		Name string `json:"name"`
 	}
-	if err := c.BindJSON(&body); err != nil || body.Name == "" {
+	if err := c.BindJSON(&body); err != nil {
 		c.JSON(400, gin.H{"error": "Bad Request"})
 		return
 	}
-	manager.CreateAssignment(body.Name)
+	name := strings.TrimSpace(body.Name)
+	if name == "" {
+		c.JSON(400, gin.H{"error": "Bad Request"})
+		return
+	}
+	if manager.AssignmentExists(name) {
+		c.JSON(http.StatusConflict, gin.H{"error": "duplicate"})
+		return
+	}
+	manager.CreateAssignment(name)
 	c.JSON(200, gin.H{"status": "success"})
 }
+
 
 func (s *Server) handleSelectAssignment(c *gin.Context) {
 	var body struct {
