@@ -9,416 +9,224 @@
         @font-face { font-family: 'Inter'; src: url('/fonts/Inter-Regular.ttf'); }
 
         :root[data-theme="dark"] {
-            --bg-main: #0d1117;
-            --bg-panel: #161b22;
-            --bg-top: #010409;
-            --text-main: #e6edf3;
-            --border: #30363d;
-            --btn-bg: #21262d;
-            --btn-hover: #30363d;
-            --blue: #58a6ff;
-            --red: #ff7b72;
-            --green: #3fb950;
-            --yellow: #dbab09;
-            --input-bg: #0d1117;
+            --bg-main: #0d1117; --bg-panel: #161b22; --bg-top: #010409;
+            --text-main: #e6edf3; --border: #30363d; --btn-bg: #21262d;
+            --btn-hover: #30363d; --blue: #58a6ff; --red: #ff7b72;
+            --green: #3fb950; --yellow: #dbab09; --input-bg: #0d1117;
         }
-
         :root[data-theme="light"] {
-            --bg-main: #f6f8fa;
-            --bg-panel: #ffffff;
-            --bg-top: #eaeef2;
-            --text-main: #1f2328;
-            --border: #d0d7de;
-            --btn-bg: #f6f8fa;
-            --btn-hover: #eaeef2;
-            --blue: #0969da;
-            --red: #d73a49;
-            --green: #28a745;
-            --yellow: #b08800;
-            --input-bg: #ffffff;
+            --bg-main: #f6f8fa; --bg-panel: #ffffff; --bg-top: #eaeef2;
+            --text-main: #1f2328; --border: #d0d7de; --btn-bg: #f6f8fa;
+            --btn-hover: #eaeef2; --blue: #0969da; --red: #d73a49;
+            --green: #28a745; --yellow: #b08800; --input-bg: #ffffff;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             font-family: 'Vazirmatn', 'Inter', sans-serif;
-            background-color: var(--bg-main);
-            color: var(--text-main);
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            background-color: var(--bg-main); color: var(--text-main);
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; flex-direction: column; overflow: hidden;
             transition: background-color 0.3s, color 0.3s;
         }
 
-        .text-red { color: var(--red); }
-        .text-yellow { color: var(--yellow); }
-        .text-green { color: var(--green); }
-        .text-blue { color: var(--blue); }
+        .text-red { color: var(--red); } .text-yellow { color: var(--yellow); }
+        .text-green { color: var(--green); } .text-blue { color: var(--blue); }
 
         .top-bar {
-            background-color: var(--bg-top);
-            height: 55px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 10px;
-            border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
+            background-color: var(--bg-top); height: 55px;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
         }
 
         .btn {
-            background-color: var(--btn-bg);
-            color: var(--text-main);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 6px 12px;
-            cursor: pointer;
-            font-weight: bold;
-            font-family: inherit;
-            font-size: 13px;
-            transition: 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 5px;
+            background-color: var(--btn-bg); color: var(--text-main);
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 6px 12px; cursor: pointer; font-weight: bold;
+            font-family: inherit; font-size: 13px; transition: 0.2s;
+            display: flex; align-items: center; gap: 5px;
         }
-
         .btn:hover { background-color: var(--btn-hover); }
         .btn-icon { width: 35px; height: 35px; justify-content: center; padding: 0; font-size: 16px; }
-
         .btn-submit { background-color: #1f6feb; color: white; border: none; }
         .btn-submit:hover { background-color: #388bfd; }
         .btn-submit.saved { background-color: #238636; }
-
         .btn-clear { background-color: var(--btn-bg); color: var(--red); }
         .btn-clear:hover { background-color: #b62324; color: white; border: none; }
 
-        .search-container {
-            position: relative;
-            display: none;
-            margin-left: 10px;
+        .fab {
+            position: fixed; top: 10px; right: 10px; z-index: 200;
+            width: 40px; height: 40px;
+            background: var(--bg-panel); color: var(--text-main);
+            border: 1px solid var(--border); border-radius: 8px;
+            cursor: pointer; font-size: 18px;
         }
-        .search-container.active { display: block; }
+        .menu-dropdown {
+            position: fixed; top: 56px; right: 10px; z-index: 200;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 8px; display: none; flex-direction: column;
+            min-width: 220px; overflow: hidden;
+        }
+        .menu-dropdown.open { display: flex; }
+        .menu-item {
+            padding: 10px 14px; cursor: pointer; text-align: left;
+            color: var(--text-main); background: none; border: none;
+            font-family: inherit; font-size: 13px;
+        }
+        .menu-item:hover { background: var(--btn-hover); }
+
+        .search-float { position: fixed; top: 56px; right: 10px; z-index: 190; display: none; }
+        .search-float.active { display: block; }
         .search-input {
-            background-color: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 8px;
-            color: var(--text-main);
-            width: 250px;
-            font-family: inherit;
+            background-color: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 6px; padding: 8px; color: var(--text-main);
+            width: 250px; font-family: inherit;
         }
         .search-results {
-            position: absolute;
-            top: 40px;
-            left: 0;
-            width: 100%;
-            background: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            display: none;
+            position: absolute; top: 40px; left: 0; width: 100%;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 6px; max-height: 200px; overflow-y: auto;
+            z-index: 1000; display: none;
         }
-        .search-item {
-            padding: 8px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border);
-            text-align: right;
-            direction: rtl;
-        }
+        .search-item { padding: 8px; cursor: pointer; border-bottom: 1px solid var(--border); text-align: right; direction: rtl; }
         .search-item:hover { background-color: #1f6feb; color: white; }
 
-        .main-container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
 
         .sidebar {
-            width: 330px;
-            min-width: 330px;
-            background-color: var(--bg-main);
-            border-right: 2px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            padding: 10px;
-            padding-bottom: calc(10px + env(safe-area-inset-bottom));
-            gap: 10px;
-            height: 100%;
-            overflow: hidden;
+            width: 330px; min-width: 330px; background-color: var(--bg-main);
+            border-right: 2px solid var(--border); display: flex; flex-direction: column;
+            padding: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            gap: 10px; height: 100%; overflow: hidden;
         }
-
         .sidebar.hidden { display: none; }
 
         .student-select {
-            width: 100%;
-            background-color: var(--bg-panel);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 10px;
-            border-radius: 6px;
-            font-family: inherit;
-            direction: rtl;
-            flex-shrink: 0;
+            width: 100%; background-color: var(--bg-panel); border: 1px solid var(--border);
+            color: var(--text-main); padding: 10px; border-radius: 6px;
+            font-family: inherit; direction: rtl; flex-shrink: 0;
         }
-
-        .info-box {
-            background-color: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            flex-shrink: 0;
-        }
-
-        .info-box .name {
-            direction: rtl;
-            text-align: right;
-            font-weight: bold;
-            font-size: 15px;
-        }
-
-        .status-row {
-            display: flex;
-            justify-content: space-between;
-            font-weight: bold;
-            font-size: 14px;
-        }
+        .info-box { background-color: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+        .info-box .name { direction: rtl; text-align: right; font-weight: bold; font-size: 15px; }
+        .status-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; }
 
         .form-area {
-            background-color: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
+            background-color: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px; display: flex; flex-direction: column; gap: 10px;
+            flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
         }
-
-        .q-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            direction: rtl;
-        }
-
+        .q-row { display: flex; justify-content: space-between; align-items: center; direction: rtl; }
         .q-input {
-            width: 80px;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 6px;
-            border-radius: 4px;
-            text-align: center;
+            width: 80px; background-color: var(--input-bg); border: 1px solid var(--border);
+            color: var(--text-main); padding: 6px; border-radius: 4px; text-align: center;
         }
-
         .q-input:focus, textarea:focus { border-color: var(--blue); outline: none; }
 
-        .desc-box {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            height: 120px;
-            flex-shrink: 0;
-        }
-
-        textarea {
-            width: 100%;
-            height: 100%;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border);
-            color: var(--text-main);
-            padding: 8px;
-            border-radius: 6px;
-            font-family: inherit;
-            resize: none;
-            direction: rtl;
-        }
-
-        .btn-row {
-            display: flex;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-
-        .btn-row .btn {
-            flex: 1;
-            justify-content: center;
-            height: 40px;
-        }
-
-        .pdf-area {
-            flex: 1;
-            background-color: var(--bg-main);
-            padding: 10px;
-            overflow: hidden;
-            display: flex;
-        }
-
-        .pdf-area.hidden { display: none; }
-
-        .pdf-frame {
-            width: 100%;
-            height: 100%;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background-color: var(--bg-panel);
-        }
-
-        .stats-sidebar {
-            width: 300px;
-            min-width: 300px;
-            background-color: var(--bg-panel);
-            border-left: 2px solid var(--border);
-            padding: 10px;
-            padding-bottom: calc(10px + env(safe-area-inset-bottom));
-            display: none;
-            height: 100%;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .stats-sidebar.active { display: block; }
-
-        .stat-card {
-            background: var(--bg-main);
-            border: 1px solid var(--border);
-            padding: 8px;
-            border-radius: 6px;
-            margin-bottom: 8px;
-        }
-
-        .lock-btn {
-            background: none;
-            border: none;
-            color: var(--text-main);
-            cursor: pointer;
-            font-size: 16px;
-        }
-
         .max-btn {
-            background: var(--btn-bg);
-            color: var(--green);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 11px;
-            font-weight: bold;
-            font-family: inherit;
+            background: var(--btn-bg); color: var(--green); border: 1px solid var(--border);
+            border-radius: 4px; padding: 4px 8px; cursor: pointer;
+            font-size: 11px; font-weight: bold; font-family: inherit;
         }
         .max-btn:hover { background: var(--btn-hover); }
 
-        .fg-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            align-self: flex-start;
-            padding: 3px 11px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: .2px;
-            margin-top: 2px;
-            transition: transform .15s ease, background .2s ease, color .2s ease, box-shadow .25s ease;
-            user-select: none;
-            white-space: nowrap;
-        }
-        .fg-badge:hover { transform: translateY(-1px); }
-        .fg-badge.complete {
-            background: rgba(63,185,80,.15);
-            color: var(--green);
-            box-shadow: inset 0 0 0 1px rgba(63,185,80,.45);
-        }
-        .fg-badge.incomplete {
-            background: rgba(219,171,9,.15);
-            color: var(--yellow);
-            box-shadow: inset 0 0 0 1px rgba(219,171,9,.5);
-            animation: fgPulse 1.9s ease-in-out infinite;
-        }
-        .fg-badge.nosub {
-            background: rgba(139,148,158,.12);
-            color: #8b949e;
-            box-shadow: inset 0 0 0 1px rgba(139,148,158,.35);
-        }
-        @keyframes fgPulse {
-            0%, 100% { box-shadow: inset 0 0 0 1px rgba(219,171,9,.5); }
-            50%      { box-shadow: inset 0 0 0 3px rgba(219,171,9,.15); }
+        .desc-box { display: flex; flex-direction: column; gap: 5px; height: 120px; flex-shrink: 0; }
+        textarea {
+            width: 100%; height: 100%; background-color: var(--input-bg); border: 1px solid var(--border);
+            color: var(--text-main); padding: 8px; border-radius: 6px; font-family: inherit;
+            resize: none; direction: rtl;
         }
 
-        .btn-flag {
-            justify-content: center;
-            height: 32px;
-            margin-top: 5px;
-            font-size: 12px;
-            transition: 0.2s;
+        .btn-row { display: flex; gap: 10px; flex-shrink: 0; }
+        .btn-row .btn { flex: 1; justify-content: center; height: 40px; }
+
+        .pdf-area { flex: 1; background-color: var(--bg-main); padding: 10px; overflow: hidden; display: flex; }
+        .pdf-area.hidden { display: none; }
+        .pdf-frame { width: 100%; height: 100%; border: 1px solid var(--border); border-radius: 8px; background-color: var(--bg-panel); }
+
+        .stats-sidebar {
+            width: 300px; min-width: 300px; background-color: var(--bg-panel);
+            border-left: 2px solid var(--border); padding: 10px;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            display: none; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch;
         }
-        .btn-flag.flagged {
-            background-color: rgba(255,123,114,.18);
-            color: var(--red);
-            border-color: var(--red);
+        .stats-sidebar.active { display: block; }
+        .stat-card { background: var(--bg-main); border: 1px solid var(--border); padding: 8px; border-radius: 6px; margin-bottom: 8px; }
+
+        .lock-btn { background: none; border: none; color: var(--text-main); cursor: pointer; font-size: 16px; }
+
+        .fg-badge {
+            display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+            padding: 3px 11px; border-radius: 999px; font-size: 12px; font-weight: 700;
+            letter-spacing: .2px; margin-top: 2px; user-select: none; white-space: nowrap;
+            transition: transform .15s ease, background .2s ease, color .2s ease, box-shadow .25s ease;
         }
+        .fg-badge:hover { transform: translateY(-1px); }
+        .fg-badge.complete { background: rgba(63,185,80,.15); color: var(--green); box-shadow: inset 0 0 0 1px rgba(63,185,80,.45); }
+        .fg-badge.incomplete { background: rgba(219,171,9,.15); color: var(--yellow); box-shadow: inset 0 0 0 1px rgba(219,171,9,.5); animation: fgPulse 1.9s ease-in-out infinite; }
+        .fg-badge.nosub { background: rgba(139,148,158,.12); color: #8b949e; box-shadow: inset 0 0 0 1px rgba(139,148,158,.35); }
+        @keyframes fgPulse { 0%,100% { box-shadow: inset 0 0 0 1px rgba(219,171,9,.5); } 50% { box-shadow: inset 0 0 0 3px rgba(219,171,9,.15); } }
+
+        .btn-flag { justify-content: center; height: 32px; margin-top: 5px; font-size: 12px; transition: 0.2s; }
+        .btn-flag.flagged { background-color: rgba(255,123,114,.18); color: var(--red); border-color: var(--red); }
         .btn-flag.flagged:hover { background-color: rgba(255,123,114,.30); }
     </style>
 </head>
 <body>
 
-    <div class="top-bar">
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <button class="btn btn-icon" onclick="toggleSidebar()">☰</button>
+    <div class="top-bar" id="topBar">
+        <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn btn-icon" onclick="toggleSidebar()">📋</button>
             <button class="btn btn-icon" onclick="toggleSearch()">🔍</button>
-            <div class="search-container" id="searchContainer">
-                <input type="text" class="search-input" id="searchInput" placeholder="Search Name or ID..." onkeyup="handleSearch()">
-                <div class="search-results" id="searchResults"></div>
-            </div>
-            <button class="btn" onclick="switchAssignment()">🔁 Switch Assignment</button>
+            <button class="btn btn-icon" onclick="setLayout('minimal')" title="Minimal mode">🍔</button>
         </div>
-        <div style="display: flex; gap: 10px;">
-            <button class="btn btn-submit" style="background-color: #238636;" onclick="window.open('/api/download/grades', '_blank')">⬇️ Excel</button>
-            <button class="btn btn-submit" onclick="window.open('/api/download/pdf_view', '_blank')">📄 Grades PDF/View</button>
+        <div style="display:flex;gap:10px;">
+            <button class="btn btn-submit" style="background-color:#238636;" onclick="window.open('/api/download/grades','_blank')">⬇️ Excel</button>
+            <button class="btn btn-submit" onclick="window.open('/api/download/pdf_view','_blank')">📄 Grades PDF/View</button>
             <button class="btn" onclick="togglePDF()">👁️ Hide/Show PDF</button>
-            <button class="btn" onclick="openPDFTab()">↗️ Open File in New Tab</button>
+            <button class="btn" onclick="openPDFTab()">↗️ Open in New Tab</button>
             <button class="btn" onclick="toggleStats()">📊 Stats</button>
             <button class="btn btn-icon" onclick="toggleTheme()" id="btnTheme">☀️</button>
         </div>
     </div>
 
+    <button class="fab" id="menuFab" onclick="toggleMenu()">☰</button>
+    <div class="menu-dropdown" id="actionMenu">
+        <button class="menu-item" onclick="setLayout('classic')">🧭 Show Top Bar</button>
+        <button class="menu-item" onclick="toggleSidebar(); closeMenu()">📋 Students Panel</button>
+        <button class="menu-item" onclick="toggleSearch(); closeMenu()">🔍 Search</button>
+        <button class="menu-item" onclick="window.open('/api/download/grades','_blank'); closeMenu()">⬇️ Excel</button>
+        <button class="menu-item" onclick="window.open('/api/download/pdf_view','_blank'); closeMenu()">📄 Grades PDF/View</button>
+        <button class="menu-item" onclick="togglePDF(); closeMenu()">👁️ Hide/Show PDF</button>
+        <button class="menu-item" onclick="openPDFTab(); closeMenu()">↗️ Open in New Tab</button>
+        <button class="menu-item" onclick="toggleStats(); closeMenu()">📊 Stats</button>
+        <button class="menu-item" onclick="toggleTheme(); closeMenu()">🌙 Toggle Theme</button>
+        <button class="menu-item" onclick="switchAssignment()">🔁 Switch Assignment</button>
+    </div>
+    <div class="search-float" id="searchContainer">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search Name or ID..." onkeyup="handleSearch()">
+        <div class="search-results" id="searchResults"></div>
+    </div>
+
     <div class="main-container">
         <div class="sidebar" id="sidebar">
             <select class="student-select" id="studentSelect" onchange="loadStudent(this.value)"></select>
-
             <div class="info-box">
                 <div style="color: #8b949e; font-size: 13px;" id="lblCount">Student 0/0</div>
                 <div class="name" id="lblName">-</div>
                 <div class="text-blue" style="font-size: 14px;" id="lblId">ID: -</div>
-
                 <div class="status-row">
                     <span id="lblStatus" class="text-red">Status: Not Submitted Yet</span>
                     <span class="text-blue" id="lblTotal">Total: 0.00</span>
                 </div>
-
                 <div id="fgBadge" class="fg-badge nosub">— Not Submitted</div>
-
                 <label style="display: flex; gap: 8px; align-items: center; font-weight: bold; cursor: pointer; margin-top: 5px;">
                     <input type="checkbox" id="cbNotSubmitted" onchange="inputChanged()"> Did Not Submit
                 </label>
-
                 <button class="btn btn-flag" id="btnFlag" onclick="toggleFlag()">🏳️ Flag for Review</button>
             </div>
-
             <button class="btn text-yellow" style="justify-content: center; height: 35px; flex-shrink: 0;" id="btnLockAll" onclick="toggleLockAll()">🔒 Lock All</button>
-
             <div class="form-area" id="formArea"></div>
-
             <div class="desc-box">
                 <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
                     <span>Description:</span>
@@ -426,12 +234,10 @@
                 </div>
                 <textarea id="txtComments" oninput="inputChanged()"></textarea>
             </div>
-
             <div class="btn-row" style="margin-top: auto;">
                 <button class="btn btn-clear" onclick="clearInputs()">Clear</button>
                 <button class="btn btn-submit" id="btnSubmit" onclick="submitGrade()">Submit</button>
             </div>
-
             <div class="btn-row">
                 <button class="btn" onclick="goPrev()">Previous</button>
                 <button class="btn" onclick="goNext()">Next</button>
@@ -475,12 +281,10 @@
         function gradeIsFilled(v) {
             return v !== "" && v !== undefined && v !== null && !isNaN(parseFloat(v));
         }
-
         function gradesAllFilled(grades) {
             return state.appData.questions.length > 0 &&
                 state.appData.questions.every(q => gradeIsFilled(grades[q]));
         }
-
         function isStudentFullyGraded(s) {
             if (s.not_submitted) return false;
             if (state.sessionEdits[s.id]) {
@@ -489,10 +293,42 @@
             }
             return !!s.fully_graded;
         }
-
         function payloadFullyGraded(payload) {
             if (payload.not_submitted) return false;
             return gradesAllFilled(payload.grades);
+        }
+
+        function applySavedTheme() {
+            const saved = localStorage.getItem('grader-theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', saved);
+            const b = el('btnTheme'); if (b) b.innerText = saved === 'dark' ? '☀️' : '🌙';
+        }
+        function toggleTheme() {
+            const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('grader-theme', next);
+            const b = el('btnTheme'); if (b) b.innerText = next === 'dark' ? '☀️' : '🌙';
+        }
+
+        function toggleMenu() { el('actionMenu').classList.toggle('open'); }
+        function closeMenu() { el('actionMenu').classList.remove('open'); }
+
+        function applyLayout() {
+            const mode = localStorage.getItem('grader-layout') || 'minimal';
+            const top = el('topBar');
+            const fab = el('menuFab');
+            if (mode === 'minimal') {
+                top.style.display = 'none';
+                fab.style.display = 'block';
+            } else {
+                top.style.display = 'flex';
+                fab.style.display = 'none';
+                closeMenu();
+            }
+        }
+        function setLayout(mode) {
+            localStorage.setItem('grader-layout', mode);
+            applyLayout();
         }
 
         function updateFgBadge() {
@@ -544,16 +380,9 @@
             }
         }
 
-        
-        function toggleTheme() {
-            const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', next);
-            localStorage.setItem('grader-theme', next);
-            el('btnTheme').innerText = next === 'dark' ? '☀️' : '🌙';
-        }
-
         async function initApp() {
             applySavedTheme();
+            applyLayout();
             const res = await fetch('/api/init');
             state.appData = await res.json();
             state.appData.questions.forEach(q => state.lockStates[q] = false);
@@ -796,19 +625,16 @@
             el(`lock_${q}`).innerText = locked ? "🔒" : "🔓";
             el(`q_${q}`).disabled = locked;
         }
-
         function toggleLock(q) {
             setLockUI(q, !state.lockStates[q]);
             syncLockAll();
         }
-
         function toggleDescLock() {
             state.isDescLocked = !state.isDescLocked;
             el('btnLockDesc').innerText = state.isDescLocked ? "🔒" : "🔓";
             el('txtComments').disabled = state.isDescLocked;
             syncLockAll();
         }
-
         function toggleLockAll() {
             const target = !(Object.values(state.lockStates).every(v => v) && state.isDescLocked);
             state.appData.questions.forEach(q => setLockUI(q, target));
@@ -817,10 +643,15 @@
             el('txtComments').disabled = target;
             syncLockAll();
         }
-
         function syncLockAll() {
             const allLocked = Object.values(state.lockStates).every(v => v) && state.isDescLocked;
             el('btnLockAll').innerText = allLocked ? "🔓 Unlock All" : "🔒 Lock All";
+        }
+
+        function setMax(q, maxG) {
+            if (state.lockStates[q]) return;
+            el(`q_${q}`).value = maxG;
+            inputChanged();
         }
 
         function goPrev() { if (state.currentIndex > 0) loadStudent(state.currentIndex - 1); }
@@ -892,18 +723,6 @@
             if (!confirm("Switch assignment? Unsaved changes will be lost.")) return;
             await fetch('/api/switch', { method: 'POST' });
             location.href = '/';
-        }
-
-        function applySavedTheme() {
-            const saved = localStorage.getItem('grader-theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', saved);
-            el('btnTheme').innerText = saved === 'dark' ? '☀️' : '🌙';
-        }
-
-        function setMax(q, maxG) {
-            if (state.lockStates[q]) return;
-            el(`q_${q}`).value = maxG;
-            inputChanged();
         }
 
         window.onload = initApp;
