@@ -367,6 +367,7 @@
                 <input type="text" class="search-input" id="searchInput" placeholder="Search Name or ID..." onkeyup="handleSearch()">
                 <div class="search-results" id="searchResults"></div>
             </div>
+            <button class="btn" onclick="switchAssignment()">🔁 Switch Assignment</button>
         </div>
         <div style="display: flex; gap: 10px;">
             <button class="btn btn-submit" style="background-color: #238636;" onclick="window.open('/api/download/grades', '_blank')">⬇️ Excel</button>
@@ -873,6 +874,12 @@
                 </div>
             `).join('');
             el('statsContent').innerHTML = html;
+        }
+
+        async function switchAssignment() {
+            if (!confirm("Switch assignment? Unsaved changes will be lost.")) return;
+            await fetch('/api/switch', { method: 'POST' });
+            location.href = '/';
         }
 
         window.onload = initApp;

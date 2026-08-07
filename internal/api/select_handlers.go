@@ -56,3 +56,8 @@ func (s *Server) handleSelectAssignment(c *gin.Context) {
 	s.dm = dm
 	c.JSON(200, gin.H{"status": "ok"})
 }
+
+func (s *Server) handleSwitchAssignment(c *gin.Context) {
+	s.dm = nil
+	c.JSON(200, gin.H{"status": "ok"})
+}

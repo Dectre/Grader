@@ -46,6 +46,7 @@ func (s *Server) setupRoutes() {
 	s.router.GET("/api/assignments", s.handleListAssignments)
 	s.router.POST("/api/assignments", s.handleCreateAssignment)
 	s.router.POST("/api/select", s.handleSelectAssignment)
+	s.router.POST("/api/switch", s.handleSwitchAssignment)
 
 	grading := s.router.Group("/", s.requireDM())
 	grading.GET("/api/init", s.handleInit)
@@ -330,3 +331,4 @@ func (s *Server) renderStudentRow(st *models.Student) string {
 	html += "</tr>"
 	return html
 }
+
