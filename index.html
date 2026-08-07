@@ -55,29 +55,19 @@
         .btn-clear { background-color: var(--btn-bg); color: var(--red); }
         .btn-clear:hover { background-color: #b62324; color: white; border: none; }
 
-        .fab {
-            position: fixed; top: 10px; right: 10px; z-index: 200;
-            width: 40px; height: 40px;
+        .expand-fab {
+            position: fixed; top: 6px; right: 6px; z-index: 200;
+            width: 28px; height: 28px;
             background: var(--bg-panel); color: var(--text-main);
-            border: 1px solid var(--border); border-radius: 8px;
-            cursor: pointer; font-size: 18px;
+            border: 1px solid var(--border); border-radius: 6px;
+            cursor: pointer; font-size: 12px;
+            display: none; align-items: center; justify-content: center;
         }
-        .menu-dropdown {
-            position: fixed; top: 56px; right: 10px; z-index: 200;
-            background: var(--bg-panel); border: 1px solid var(--border);
-            border-radius: 8px; display: none; flex-direction: column;
-            min-width: 220px; overflow: hidden;
-        }
-        .menu-dropdown.open { display: flex; }
-        .menu-item {
-            padding: 10px 14px; cursor: pointer; text-align: left;
-            color: var(--text-main); background: none; border: none;
-            font-family: inherit; font-size: 13px;
-        }
-        .menu-item:hover { background: var(--btn-hover); }
+        .expand-fab.show { display: flex; }
+        .expand-fab:hover { background: var(--btn-hover); }
 
-        .search-float { position: fixed; top: 56px; right: 10px; z-index: 190; display: none; }
-        .search-float.active { display: block; }
+        .search-container { position: relative; display: none; margin-left: 10px; }
+        .search-container.active { display: block; }
         .search-input {
             background-color: var(--bg-panel); border: 1px solid var(--border);
             border-radius: 6px; padding: 8px; color: var(--text-main);
@@ -91,6 +81,18 @@
         }
         .search-item { padding: 8px; cursor: pointer; border-bottom: 1px solid var(--border); text-align: right; direction: rtl; }
         .search-item:hover { background-color: #1f6feb; color: white; }
+
+        .side-handle {
+            position: fixed; top: 50%; transform: translateY(-50%);
+            left: 330px; z-index: 150;
+            width: 16px; height: 64px;
+            background: var(--bg-panel); color: var(--text-main);
+            border: 1px solid var(--border); border-left: none;
+            border-radius: 0 6px 6px 0; cursor: pointer;
+            font-size: 10px; display: flex; align-items: center; justify-content: center;
+            transition: left .2s; padding: 0;
+        }
+        .side-handle:hover { background: var(--btn-hover); }
 
         .main-container { display: flex; flex: 1; overflow: hidden; }
 
@@ -176,9 +178,11 @@
 
     <div class="top-bar" id="topBar">
         <div style="display:flex;gap:10px;align-items:center;">
-            <button class="btn btn-icon" onclick="toggleSidebar()">📋</button>
             <button class="btn btn-icon" onclick="toggleSearch()">🔍</button>
-            <button class="btn btn-icon" onclick="setLayout('minimal')" title="Minimal mode">🍔</button>
+            <div class="search-container" id="searchContainer">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search Name or ID..." onkeyup="handleSearch()">
+                <div class="search-results" id="searchResults"></div>
+            </div>
         </div>
         <div style="display:flex;gap:10px;">
             <button class="btn btn-submit" style="background-color:#238636;" onclick="window.open('/api/download/grades','_blank')">⬇️ Excel</button>
@@ -186,27 +190,14 @@
             <button class="btn" onclick="togglePDF()">👁️ Hide/Show PDF</button>
             <button class="btn" onclick="openPDFTab()">↗️ Open in New Tab</button>
             <button class="btn" onclick="toggleStats()">📊 Stats</button>
+            <button class="btn" onclick="switchAssignment()">🔁 Switch</button>
             <button class="btn btn-icon" onclick="toggleTheme()" id="btnTheme">☀️</button>
+            <button class="btn btn-icon" onclick="collapseTopBar()" title="Collapse top bar">▲</button>
         </div>
     </div>
 
-    <button class="fab" id="menuFab" onclick="toggleMenu()">☰</button>
-    <div class="menu-dropdown" id="actionMenu">
-        <button class="menu-item" onclick="setLayout('classic')">🧭 Show Top Bar</button>
-        <button class="menu-item" onclick="toggleSidebar(); closeMenu()">📋 Students Panel</button>
-        <button class="menu-item" onclick="toggleSearch(); closeMenu()">🔍 Search</button>
-        <button class="menu-item" onclick="window.open('/api/download/grades','_blank'); closeMenu()">⬇️ Excel</button>
-        <button class="menu-item" onclick="window.open('/api/download/pdf_view','_blank'); closeMenu()">📄 Grades PDF/View</button>
-        <button class="menu-item" onclick="togglePDF(); closeMenu()">👁️ Hide/Show PDF</button>
-        <button class="menu-item" onclick="openPDFTab(); closeMenu()">↗️ Open in New Tab</button>
-        <button class="menu-item" onclick="toggleStats(); closeMenu()">📊 Stats</button>
-        <button class="menu-item" onclick="toggleTheme(); closeMenu()">🌙 Toggle Theme</button>
-        <button class="menu-item" onclick="switchAssignment()">🔁 Switch Assignment</button>
-    </div>
-    <div class="search-float" id="searchContainer">
-        <input type="text" class="search-input" id="searchInput" placeholder="Search Name or ID..." onkeyup="handleSearch()">
-        <div class="search-results" id="searchResults"></div>
-    </div>
+    <button class="expand-fab" id="expandFab" onclick="expandTopBar()" title="Show top bar">▼</button>
+    <button class="side-handle" id="sideHandle" onclick="toggleSidebar()">◀</button>
 
     <div class="main-container">
         <div class="sidebar" id="sidebar">
@@ -310,25 +301,20 @@
             const b = el('btnTheme'); if (b) b.innerText = next === 'dark' ? '☀️' : '🌙';
         }
 
-        function toggleMenu() { el('actionMenu').classList.toggle('open'); }
-        function closeMenu() { el('actionMenu').classList.remove('open'); }
-
-        function applyLayout() {
-            const mode = localStorage.getItem('grader-layout') || 'minimal';
-            const top = el('topBar');
-            const fab = el('menuFab');
-            if (mode === 'minimal') {
-                top.style.display = 'none';
-                fab.style.display = 'block';
-            } else {
-                top.style.display = 'flex';
-                fab.style.display = 'none';
-                closeMenu();
-            }
+        function collapseTopBar() {
+            el('topBar').style.display = 'none';
+            el('expandFab').classList.add('show');
         }
-        function setLayout(mode) {
-            localStorage.setItem('grader-layout', mode);
-            applyLayout();
+        function expandTopBar() {
+            el('topBar').style.display = 'flex';
+            el('expandFab').classList.remove('show');
+        }
+
+        function updateSideHandle() {
+            const hidden = el('sidebar').classList.contains('hidden');
+            const h = el('sideHandle');
+            h.style.left = hidden ? '0px' : '330px';
+            h.innerText = hidden ? '▶' : '◀';
         }
 
         function updateFgBadge() {
@@ -382,7 +368,7 @@
 
         async function initApp() {
             applySavedTheme();
-            applyLayout();
+            updateSideHandle();
             const res = await fetch('/api/init');
             state.appData = await res.json();
             state.appData.questions.forEach(q => state.lockStates[q] = false);
@@ -657,7 +643,10 @@
         function goPrev() { if (state.currentIndex > 0) loadStudent(state.currentIndex - 1); }
         function goNext() { if (state.currentIndex < state.appData.students.length - 1) loadStudent(state.currentIndex + 1); }
 
-        function toggleSidebar() { el('sidebar').classList.toggle('hidden'); }
+        function toggleSidebar() {
+            el('sidebar').classList.toggle('hidden');
+            updateSideHandle();
+        }
         function togglePDF() { el('pdfArea').classList.toggle('hidden'); }
         function toggleStats() { el('statsSidebar').classList.toggle('active'); }
 
