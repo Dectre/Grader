@@ -1,9 +1,13 @@
 package manager
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/csv"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -178,10 +182,6 @@ func (dm *DataManager) ExportFiles() {
 		for c := 1; c <= maxC; c++ {
 			bold := r <= 7
 			isDesc := (c == descColIdx)
-			isYellow := false
-			if r >= dataStartRow && r-dataStartRow < len(dm.Students) && c <= 3 {
-				isYellow = dm.Students[r-dataStartRow].Flagged
-			}
 			align := &excelize.Alignment{Horizontal: "center", Vertical: "center"}
 			if isDesc && r >= dataStartRow {
 				align = &excelize.Alignment{Horizontal: "right", Vertical: "top", WrapText: true}
@@ -214,7 +214,7 @@ func (dm *DataManager) ExportFiles() {
 			if c == maxC {
 				right = 5
 			}
-			key := fmt.Sprintf("%v_%v_%v_%d_%d_%d_%d", bold, isDesc, isYellow, top, bottom, left, right)
+			key := fmt.Sprintf("%v_%v_%d_%d_%d_%d", bold, isDesc, top, bottom, left, right)
 			sID, exists := styleCache[key]
 			if !exists {
 				border := []excelize.Border{
@@ -231,9 +231,6 @@ func (dm *DataManager) ExportFiles() {
 					Font:      fnt,
 					Alignment: align,
 					Border:    border,
-				}
-				if isYellow {
-					cellStyle.Fill = excelize.Fill{Type: "pattern", Color: []string{"FFFF00"}, Pattern: 1}
 				}
 				sID, _ = xf.NewStyle(cellStyle)
 				styleCache[key] = sID
@@ -254,4 +251,85 @@ func (dm *DataManager) ExportFiles() {
 	})
 	xf.SetSheetView(sheet, 0, &excelize.ViewOptions{RightToLeft: func(b bool) *bool { return &b }(false)})
 	xf.SaveAs(dm.ExcelPath)
+
+	if len(dm.Students) > 0 {
+		sqref := fmt.Sprintf("A%d:C%d", dataStartRow, maxR)
+		formula := fmt.Sprintf(`$%s%d="☑"`, flagColName, dataStartRow)
+		injectFlagHighlight(dm.ExcelPath, sqref, formula)
+	}
+}
+
+func injectFlagHighlight(xlsxPath, sqref, formula string) error {
+	raw, err := os.ReadFile(xlsxPath)
+	if err != nil {
+		return err
+	}
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		return err
+	}
+	entries := make(map[string][]byte)
+	var names []string
+	for _, zf := range zr.File {
+		rc, err := zf.Open()
+		if err != nil {
+			return err
+		}
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		entries[zf.Name] = b
+		names = append(names, zf.Name)
+	}
+
+	dxf := `<dxf><fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor rgb="FFFFFF00"/></patternFill></fill></dxf>`
+	dxfID := 0
+	styles := string(entries["xl/styles.xml"])
+	if idx := strings.Index(styles, "<dxfs"); idx != -1 {
+		rest := styles[idx:]
+		end := strings.Index(rest, ">")
+		tag := rest[:end+1]
+		count := 0
+		if ci := strings.Index(tag, `count="`); ci != -1 {
+			fmt.Sscanf(tag[ci+7:], "%d", &count)
+		}
+		dxfID = count
+		newTag := strings.Replace(tag, fmt.Sprintf(`count="%d"`, count), fmt.Sprintf(`count="%d"`, count+1), 1)
+		selfClosing := strings.HasSuffix(tag, "/>")
+		if selfClosing {
+			newTag = strings.TrimSuffix(newTag, "/>") + dxf + `</dxfs>`
+			styles = strings.Replace(styles, tag, newTag, 1)
+		} else {
+			styles = strings.Replace(styles, tag, newTag, 1)
+			styles = strings.Replace(styles, `</dxfs>`, dxf+`</dxfs>`, 1)
+		}
+	} else {
+		styles = strings.Replace(styles, `<cellStyles`, `<dxfs count="1">`+dxf+`</dxfs><cellStyles`, 1)
+	}
+	entries["xl/styles.xml"] = []byte(styles)
+
+	escFormula := strings.ReplaceAll(formula, `"`, "&quot;")
+	cf := fmt.Sprintf(`<conditionalFormatting sqref="%s"><cfRule type="expression" priority="1" dxfId="%d"><formula>%s</formula></cfRule></conditionalFormatting>`, sqref, dxfID, escFormula)
+	sheet := string(entries["xl/worksheets/sheet1.xml"])
+	if idx := strings.Index(sheet, "<dataValidations"); idx != -1 {
+		sheet = sheet[:idx] + cf + sheet[idx:]
+	} else {
+		sheet = strings.Replace(sheet, `</worksheet>`, cf+`</worksheet>`, 1)
+	}
+	entries["xl/worksheets/sheet1.xml"] = []byte(sheet)
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, name := range names {
+		w, err := zw.Create(name)
+		if err != nil {
+			return err
+		}
+		if _, err := w.Write(entries[name]); err != nil {
+			return err
+		}
+	}
+	if err := zw.Close(); err != nil {
+		return err
+	}
+	return os.WriteFile(xlsxPath, buf.Bytes(), 0644)
 }
