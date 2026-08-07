@@ -126,7 +126,7 @@ func (dm *DataManager) ExportFiles() {
 			}
 		}
 		if s.NotSubmitted {
-			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☑")
+			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☐")
 		} else {
 			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☐")
 		}
@@ -158,6 +158,14 @@ func (dm *DataManager) ExportFiles() {
 	xf.SetColWidth(sheet, nsColName, nsColName, 14)
 	xf.SetColWidth(sheet, fgColName, fgColName, 14)
 	xf.SetColWidth(sheet, flagColName, flagColName, 12)
+
+	if len(dm.Students) > 0 {
+		dv := excelize.NewDataValidation(true)
+		dv.SetSqref(fmt.Sprintf("%s%d:%s%d", nsColName, dataStartRow, flagColName, maxR))
+		if err := dv.SetDropList([]string{"☐", "☑"}); err == nil {
+			xf.AddDataValidation(sheet, dv)
+		}
+	}
 
 	styleCache := make(map[string]int)
 	for r := 1; r <= maxR; r++ {
