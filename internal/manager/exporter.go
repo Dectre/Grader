@@ -27,9 +27,11 @@ func (dm *DataManager) ExportFiles() {
 			}
 		}
 		if s.NotSubmitted {
-			row = append(row, "")
-		} else {
+			row = append(row, "0.00")
+		} else if s.FullyGraded {
 			row = append(row, fmt.Sprintf("%.2f", s.TotalScore))
+		} else {
+			row = append(row, "")
 		}
 		row = append(row, s.Description)
 		row = append(row, fmt.Sprintf("%t", s.NotSubmitted))
@@ -48,9 +50,10 @@ func (dm *DataManager) ExportFiles() {
 	exHeaders = append(exHeaders, dm.Questions...)
 	exHeaders = append(exHeaders, "Total Score", "Description", "Not Submitted", "Fully Graded", "Flagged")
 	maxC := len(exHeaders)
-	maxR := 7 + len(dm.Students) - 1
+	dataStartRow := 8
+	maxR := dataStartRow + len(dm.Students) - 1
 	if len(dm.Students) == 0 {
-		maxR = 7
+		maxR = dataStartRow
 	}
 
 	flagColIdx := maxC
@@ -75,35 +78,38 @@ func (dm *DataManager) ExportFiles() {
 	flagColName, _ := excelize.ColumnNumberToName(flagColIdx)
 	xf.SetCellValue(sheet, fmt.Sprintf("%s1", flagColName), "Flagged")
 
-	xf.SetCellValue(sheet, "A6", "First Name")
-	xf.SetCellValue(sheet, "B6", "Last Name")
-	xf.SetCellValue(sheet, "C6", "Student ID")
-
+	xf.MergeCell(sheet, "A2", "C2")
+	xf.SetCellValue(sheet, "A2", "Graded Count")
 	stats := []string{"Mean", "Median", "Max", "Min"}
 	for i, s := range stats {
-		row := i + 2
+		row := i + 3
 		xf.MergeCell(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row))
 		xf.SetCellValue(sheet, fmt.Sprintf("A%d", row), s)
 	}
 
-	dataStartRow := 7
-	dataEndRow := maxR
+	xf.SetCellValue(sheet, "A7", "First Name")
+	xf.SetCellValue(sheet, "B7", "Last Name")
+	xf.SetCellValue(sheet, "C7", "Student ID")
 
 	for i := range dm.Questions {
 		c := i + 4
 		colName, _ := excelize.ColumnNumberToName(c)
-		dr := fmt.Sprintf("%s%d:%s%d", colName, dataStartRow, colName, dataEndRow)
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", colName), fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", colName), fmt.Sprintf("=IFERROR(MEDIAN(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", colName), fmt.Sprintf("=IFERROR(MAX(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", colName), fmt.Sprintf("=IFERROR(MIN(%s), 0)", dr))
+		dr := fmt.Sprintf("%s%d:%s%d", colName, dataStartRow, colName, maxR)
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", colName), fmt.Sprintf("=COUNT(%s)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", colName), fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", colName), fmt.Sprintf("=IFERROR(MEDIAN(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", colName), fmt.Sprintf("=IFERROR(MAX(%s), 0)", dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s6", colName), fmt.Sprintf("=IFERROR(MIN(%s), 0)", dr))
 	}
 	if len(dm.Questions) > 0 {
-		dr := fmt.Sprintf("%s%d:%s%d", totColName, dataStartRow, totColName, dataEndRow)
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", totColName), fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", totColName), fmt.Sprintf("=IFERROR(MEDIAN(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", totColName), fmt.Sprintf("=IFERROR(MAX(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", totColName), fmt.Sprintf("=IFERROR(MIN(%s), 0)", dr))
+		dr := fmt.Sprintf("%s%d:%s%d", totColName, dataStartRow, totColName, maxR)
+		fgr := fmt.Sprintf("%s%d:%s%d", fgColName, dataStartRow, fgColName, maxR)
+		n := fmt.Sprintf("SUMPRODUCT((%s=\"☑\")*1)", fgr)
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", totColName), fmt.Sprintf(`=COUNTIF(%s, "☑")`, fgr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", totColName), fmt.Sprintf(`=IFERROR(AVERAGEIF(%s, "☑", %s), 0)`, fgr, dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", totColName), fmt.Sprintf(`=IFERROR(IF(%[1]s=0, 0, (SUMPRODUCT(SMALL(IF(%[2]s="☑", %[3]s, 10^9), INT((%[1]s+1)/2))) + SUMPRODUCT(SMALL(IF(%[2]s="☑", %[3]s, 10^9), INT((%[1]s+2)/2)))) / 2), 0)`, n, fgr, dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", totColName), fmt.Sprintf(`=IFERROR(SUMPRODUCT(MAX((%s="☑")*%s)), 0)`, fgr, dr))
+		xf.SetCellFormula(sheet, fmt.Sprintf("%s6", totColName), fmt.Sprintf(`=IFERROR(IF(%s=0, 0, SUMPRODUCT(MIN(IF(%s="☑", %s, 10^9)))), 0)`, n, fgr, dr))
 	}
 
 	for rIdx, s := range dm.Students {
@@ -126,7 +132,7 @@ func (dm *DataManager) ExportFiles() {
 			}
 		}
 		if s.NotSubmitted {
-			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☐")
+			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☑")
 		} else {
 			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☐")
 		}
@@ -144,7 +150,7 @@ func (dm *DataManager) ExportFiles() {
 		if len(dm.Questions) > 0 {
 			firstQ, _ := excelize.ColumnNumberToName(4)
 			lastQ, _ := excelize.ColumnNumberToName(3 + len(dm.Questions))
-			formula := fmt.Sprintf(`=IF(%s%d="☑", "", SUM(%s%d:%s%d))`, nsColName, row, firstQ, row, lastQ, row)
+			formula := fmt.Sprintf(`=IF(%s%d="☑", 0, IF(%s%d="☑", SUM(%s%d:%s%d), ""))`, nsColName, row, fgColName, row, firstQ, row, lastQ, row)
 			xf.SetCellFormula(sheet, fmt.Sprintf("%s%d", totColName, row), formula)
 		}
 	}
@@ -170,14 +176,14 @@ func (dm *DataManager) ExportFiles() {
 	styleCache := make(map[string]int)
 	for r := 1; r <= maxR; r++ {
 		for c := 1; c <= maxC; c++ {
-			bold := r <= 6
+			bold := r <= 7
 			isDesc := (c == descColIdx)
 			isYellow := false
 			if r >= dataStartRow && r-dataStartRow < len(dm.Students) && c <= 3 {
 				isYellow = dm.Students[r-dataStartRow].Flagged
 			}
 			align := &excelize.Alignment{Horizontal: "center", Vertical: "center"}
-			if isDesc && r > 6 {
+			if isDesc && r >= dataStartRow {
 				align = &excelize.Alignment{Horizontal: "right", Vertical: "top", WrapText: true}
 			}
 			top, bottom, left, right := 1, 1, 1, 1
@@ -187,10 +193,10 @@ func (dm *DataManager) ExportFiles() {
 			if r == 2 {
 				top = 5
 			}
-			if r == 6 {
+			if r == 7 {
 				top, bottom = 5, 5
 			}
-			if r == 7 {
+			if r == dataStartRow {
 				top = 5
 			}
 			if r == maxR {

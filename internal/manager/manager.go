@@ -200,7 +200,7 @@ func (dm *DataManager) loadSavedData() {
 		for _, row := range records {
 			if len(row) > 0 {
 				firstCol := strings.TrimSpace(row[0])
-				if firstCol != "Mean" && firstCol != "Median" && firstCol != "Max" && firstCol != "Min" && firstCol != "First Name" {
+				if firstCol != "Mean" && firstCol != "Median" && firstCol != "Max" && firstCol != "Min" && firstCol != "First Name" && firstCol != "Graded Count" {
 					filtered = append(filtered, row)
 				}
 			}
@@ -334,12 +334,24 @@ func (dm *DataManager) GetStats() map[string]interface{} {
 	stats := make(map[string]interface{})
 	for _, q := range append(dm.Questions, "Total Score") {
 		var vals []float64
+		count := 0.0
 		for _, s := range dm.Students {
 			if s.IsSubmitted && !s.NotSubmitted {
 				if q == "Total Score" {
-					vals = append(vals, s.TotalScore)
+					if s.FullyGraded {
+						vals = append(vals, s.TotalScore)
+					}
 				} else if val, ok := s.Grades[q].(float64); ok {
 					vals = append(vals, val)
+				}
+			}
+			if !s.NotSubmitted {
+				if q == "Total Score" {
+					if s.FullyGraded {
+						count++
+					}
+				} else if _, ok := s.Grades[q].(float64); ok {
+					count++
 				}
 			}
 		}
@@ -361,17 +373,19 @@ func (dm *DataManager) GetStats() map[string]interface{} {
 			}
 			med = math.Round(med*100) / 100
 			stats[q] = map[string]float64{
-				"avg": avg,
-				"med": med,
-				"max": maxVal,
-				"min": minVal,
+				"avg":   avg,
+				"med":   med,
+				"max":   maxVal,
+				"min":   minVal,
+				"count": count,
 			}
 		} else {
 			stats[q] = map[string]float64{
-				"avg": 0,
-				"med": 0,
-				"max": 0,
-				"min": 0,
+				"avg":   0,
+				"med":   0,
+				"max":   0,
+				"min":   0,
+				"count": count,
 			}
 		}
 	}
