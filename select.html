@@ -16,7 +16,7 @@ h1{font-size:19px;}
 .controls{display:flex;gap:6px;}
 .icon-btn{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;}
 .icon-btn.active{border-color:var(--blue);color:var(--blue);}
-.list{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:6px;padding:8px;}
+.list{max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:6px;padding:8px;}
 .item{padding:10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
 .item:hover{border-color:var(--blue);}
 .item.last{border-color:var(--green);}
@@ -187,12 +187,24 @@ function render() {
 
         const right = document.createElement('div');
         right.style.cssText = 'display:flex;gap:6px;align-items:center;';
+
+        const ren = document.createElement('button');
+        ren.className = 'icon-btn'; ren.innerText = '✏️'; ren.title = 'Rename';
+        ren.onclick = (e) => { e.stopPropagation(); renameAssignment(a.name); };
+
+        const del = document.createElement('button');
+        del.className = 'icon-btn'; del.innerText = '🗑️'; del.title = 'Delete';
+        del.onclick = (e) => { e.stopPropagation(); deleteAssignment(a.name); };
+
         const gear = document.createElement('button');
-        gear.className = 'icon-btn';
-        gear.innerText = '⚙️';
+        gear.className = 'icon-btn'; gear.innerText = '⚙️';
         gear.onclick = (e) => { e.stopPropagation(); openSetup(a.name); };
+
         const arrow = document.createElement('span');
         arrow.innerText = '→';
+
+        right.appendChild(ren);
+        right.appendChild(del);
         right.appendChild(gear);
         right.appendChild(arrow);
 
@@ -270,6 +282,27 @@ function uploadPDFs(input) {
     fetch(`/api/assignment/${setupName}/pdfs`, { method: 'POST', body: fd })
         .then(r => r.json())
         .then(d => { log('✅ ' + (d.added || 0) + ' PDF(s) added to "' + setupName + '".', 'ok'); input.value = ''; });
+}
+
+async function renameAssignment(name) {
+    const newName = prompt('Rename "' + name + '" to:', name);
+    if (!newName || newName.trim() === '' || newName.trim() === name) return;
+    const res = await fetch(`/api/assignment/${encodeURIComponent(name)}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() })
+    });
+    if (res.status === 409) { log('⚠️ "' + newName.trim() + '" already exists.', 'err'); return; }
+    log('✅ Renamed to "' + newName.trim() + '".', 'ok');
+    load();
+}
+
+async function deleteAssignment(name) {
+    if (!confirm('Delete "' + name + '" and ALL its files (PDFs, Data, output)? This cannot be undone.')) return;
+    await fetch(`/api/assignment/${encodeURIComponent(name)}/delete`, { method: 'POST' });
+    if (lastSelected === name) { localStorage.removeItem('grader-last-assignment'); lastSelected = ''; }
+    log('🗑️ "' + name + '" deleted.', 'ok');
+    load();
 }
 
 applySavedTheme();

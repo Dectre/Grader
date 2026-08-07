@@ -2,6 +2,7 @@ package manager
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -134,4 +135,38 @@ func TouchAssignment(name string) {
 
 func (dm *DataManager) Touch() {
 	TouchAssignment(filepath.Base(dm.AssignmentDir))
+}
+
+func DeleteAssignment(name string) error {
+	r := loadRegistry()
+	var kept []Assignment
+	for _, a := range r.Assignments {
+		if a.Name != name {
+			kept = append(kept, a)
+		}
+	}
+	r.Assignments = kept
+	saveRegistry(r)
+	return os.RemoveAll(AssignmentPath(name))
+}
+
+func RenameAssignment(oldName, newName string) error {
+	if oldName == newName {
+		return nil
+	}
+	if AssignmentExists(newName) {
+		return fmt.Errorf("duplicate")
+	}
+	if err := os.Rename(AssignmentPath(oldName), AssignmentPath(newName)); err != nil {
+		return err
+	}
+	r := loadRegistry()
+	for i := range r.Assignments {
+		if r.Assignments[i].Name == oldName {
+			r.Assignments[i].Name = newName
+			r.Assignments[i].ModifiedAt = time.Now().Format(time.RFC3339)
+		}
+	}
+	saveRegistry(r)
+	return nil
 }

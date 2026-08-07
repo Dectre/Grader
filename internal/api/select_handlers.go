@@ -176,3 +176,33 @@ func (s *Server) handleUploadPDFs(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{"status": "success", "added": added})
 }
+
+func (s *Server) handleDeleteAssignment(c *gin.Context) {
+	name := filepath.Base(c.Param("name"))
+	if err := manager.DeleteAssignment(name); err != nil {
+		c.JSON(500, gin.H{"error": "Delete failed"})
+		return
+	}
+	c.JSON(200, gin.H{"status": "success"})
+}
+
+func (s *Server) handleRenameAssignment(c *gin.Context) {
+	oldName := filepath.Base(c.Param("name"))
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(400, gin.H{"error": "Bad Request"})
+		return
+	}
+	newName := strings.TrimSpace(body.Name)
+	if newName == "" {
+		c.JSON(400, gin.H{"error": "Bad Request"})
+		return
+	}
+	if err := manager.RenameAssignment(oldName, newName); err != nil {
+		c.JSON(409, gin.H{"error": "duplicate"})
+		return
+	}
+	c.JSON(200, gin.H{"status": "success"})
+}
