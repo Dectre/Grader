@@ -10,238 +10,350 @@ import (
 	"strings"
 
 	"github.com/xuri/excelize/v2"
+	"grader/internal/models"
 )
 
+type ExcelBuilder struct {
+	xf             *excelize.File
+	sheet          string
+	dataStartRow   int
+	maxR           int
+	maxC           int
+	nsColIdx       int
+	nsColName      string
+	descColIdx     int
+	descColName    string
+	fgColIdx       int
+	fgColName      string
+	flagColIdx     int
+	flagColName    string
+	totColIdx      int
+	totColName     string
+	questions      []string
+	stylesCache    map[string]int
+	defaultStyleID int
+}
+
 func (dm *DataManager) ExportFiles() {
+	dm.writeCSVReport()
+	dm.writeExcelReport()
+}
+
+func (dm *DataManager) writeCSVReport() {
 	f, _ := os.Create(dm.CSVPath)
 	defer f.Close()
-	writer := csv.NewWriter(f)
 	f.WriteString("\xef\xbb\xbf")
+	writer := csv.NewWriter(f)
+	dm.writeCSVHeader(writer)
+	for _, s := range dm.Students {
+		dm.writeCSVRow(writer, s)
+	}
+	writer.Flush()
+}
+
+func (dm *DataManager) writeCSVHeader(w *csv.Writer) {
 	header := []string{"First Name", "Last Name", "Student ID"}
 	header = append(header, dm.Questions...)
 	header = append(header, "Total Score", "Description", "Not Submitted", "Fully Graded", "Flagged", "_Submitted")
-	writer.Write(header)
-	for _, s := range dm.Students {
-		row := []string{s.Name, s.Surname, s.ID}
-		for _, q := range dm.Questions {
-			if val, ok := s.Grades[q].(float64); ok {
-				row = append(row, fmt.Sprintf("%.2f", val))
-			} else {
-				row = append(row, "")
-			}
-		}
-		if s.NotSubmitted {
-			row = append(row, "0.00")
-		} else if s.FullyGraded {
-			row = append(row, fmt.Sprintf("%.2f", s.TotalScore))
+	w.Write(header)
+}
+
+func (dm *DataManager) writeCSVRow(w *csv.Writer, s *models.Student) {
+	row := []string{s.Name, s.Surname, s.ID}
+	for _, q := range dm.Questions {
+		if val, ok := s.Grades[q].(float64); ok {
+			row = append(row, fmt.Sprintf("%.2f", val))
 		} else {
 			row = append(row, "")
 		}
-		row = append(row, s.Description)
-		row = append(row, fmt.Sprintf("%t", s.NotSubmitted))
-		row = append(row, fmt.Sprintf("%t", s.FullyGraded))
-		row = append(row, fmt.Sprintf("%t", s.Flagged))
-		row = append(row, fmt.Sprintf("%t", s.IsSubmitted))
-		writer.Write(row)
 	}
-	writer.Flush()
+	row = append(row, dm.studentTotalCSV(s))
+	row = append(row, s.Description)
+	row = append(row, fmt.Sprintf("%t", s.NotSubmitted))
+	row = append(row, fmt.Sprintf("%t", s.FullyGraded))
+	row = append(row, fmt.Sprintf("%t", s.Flagged))
+	row = append(row, fmt.Sprintf("%t", s.IsSubmitted))
+	w.Write(row)
+}
 
-	xf := excelize.NewFile()
-	sheet := "Sheet1"
-	xf.SetDefaultFont("Vazirmatn")
+func (dm *DataManager) studentTotalCSV(s *models.Student) string {
+	if s.NotSubmitted {
+		return "0.00"
+	}
+	if s.FullyGraded {
+		return fmt.Sprintf("%.2f", s.TotalScore)
+	}
+	return ""
+}
 
-	exHeaders := []string{"First Name", "Last Name", "Student ID"}
-	exHeaders = append(exHeaders, dm.Questions...)
-	exHeaders = append(exHeaders, "Total Score", "Description", "Not Submitted", "Fully Graded", "Flagged")
-	maxC := len(exHeaders)
+func (dm *DataManager) writeExcelReport() {
+	b := newExcelBuilder(dm.Questions, len(dm.Students))
+	b.initFile()
+	b.writeQuestionHeaders()
+	b.writeMetaHeaders()
+	b.writeStatLabels()
+	b.writeDataTableHeaders()
+	b.writeQuestionStatFormulas()
+	b.writeTotalStatFormulas()
+	b.writeStudentRows(dm.Students)
+	b.setColumnWidths()
+	b.addCheckboxValidation()
+	b.applyCellStyles()
+	b.configurePanes()
+	b.save(dm.ExcelPath)
+	if len(dm.Students) > 0 {
+		injectFlagHighlight(dm.ExcelPath, b.flagSqref(), b.flagFormula())
+	}
+}
+
+func newExcelBuilder(questions []string, studentCount int) *ExcelBuilder {
 	dataStartRow := 8
-	maxR := dataStartRow + len(dm.Students) - 1
-	if len(dm.Students) == 0 {
+	maxR := dataStartRow + studentCount - 1
+	if studentCount == 0 {
 		maxR = dataStartRow
 	}
+	exHeaders := append(append([]string{"First Name", "Last Name", "Student ID"}, questions...),
+		"Total Score", "Description", "Not Submitted", "Fully Graded", "Flagged")
+	maxC := len(exHeaders)
+	return &ExcelBuilder{
+		sheet:        "Sheet1",
+		dataStartRow: dataStartRow,
+		maxR:         maxR,
+		maxC:         maxC,
+		nsColIdx:     maxC - 2,
+		descColIdx:   maxC - 3,
+		fgColIdx:     maxC - 1,
+		flagColIdx:   maxC,
+		totColIdx:    maxC - 4,
+		questions:    questions,
+		stylesCache:  make(map[string]int),
+	}
+}
 
-	flagColIdx := maxC
-	fgColIdx := maxC - 1
-	nsColIdx := maxC - 2
-	descColIdx := maxC - 3
-	totColIdx := maxC - 4
+func (b *ExcelBuilder) initFile() {
+	b.xf = excelize.NewFile()
+	b.xf.SetDefaultFont("Vazirmatn")
+	b.nsColName, _ = excelize.ColumnNumberToName(b.nsColIdx)
+	b.descColName, _ = excelize.ColumnNumberToName(b.descColIdx)
+	b.fgColName, _ = excelize.ColumnNumberToName(b.fgColIdx)
+	b.flagColName, _ = excelize.ColumnNumberToName(b.flagColIdx)
+	b.totColName, _ = excelize.ColumnNumberToName(b.totColIdx)
+}
 
-	for i, q := range dm.Questions {
+func (b *ExcelBuilder) writeQuestionHeaders() {
+	for i, q := range b.questions {
 		c := i + 4
 		colName, _ := excelize.ColumnNumberToName(c)
-		xf.SetCellValue(sheet, fmt.Sprintf("%s1", colName), q)
+		b.xf.SetCellValue(b.sheet, fmt.Sprintf("%s1", colName), q)
 	}
-	totColName, _ := excelize.ColumnNumberToName(totColIdx)
-	xf.SetCellValue(sheet, fmt.Sprintf("%s1", totColName), "Total Score")
-	nsColName, _ := excelize.ColumnNumberToName(nsColIdx)
-	xf.SetCellValue(sheet, fmt.Sprintf("%s1", nsColName), "Not Submitted")
-	descColName, _ := excelize.ColumnNumberToName(descColIdx)
-	xf.SetCellValue(sheet, fmt.Sprintf("%s1", descColName), "Description")
-	fgColName, _ := excelize.ColumnNumberToName(fgColIdx)
-	xf.SetCellValue(sheet, fmt.Sprintf("%s1", fgColName), "Fully Graded")
-	flagColName, _ := excelize.ColumnNumberToName(flagColIdx)
-	xf.SetCellValue(sheet, fmt.Sprintf("%s1", flagColName), "Flagged")
+	b.xf.SetCellValue(b.sheet, b.totColName+"1", "Total Score")
+	b.xf.SetCellValue(b.sheet, b.nsColName+"1", "Not Submitted")
+	b.xf.SetCellValue(b.sheet, b.descColName+"1", "Description")
+	b.xf.SetCellValue(b.sheet, b.fgColName+"1", "Fully Graded")
+	b.xf.SetCellValue(b.sheet, b.flagColName+"1", "Flagged")
+}
 
-	xf.MergeCell(sheet, "A2", "C2")
-	xf.SetCellValue(sheet, "A2", "Graded Count")
-	stats := []string{"Mean", "Median", "Max", "Min"}
-	for i, s := range stats {
+func (b *ExcelBuilder) writeMetaHeaders() {
+	b.xf.MergeCell(b.sheet, "A2", "C2")
+	b.xf.SetCellValue(b.sheet, "A2", "Graded Count")
+	for i, label := range []string{"Mean", "Median", "Max", "Min"} {
 		row := i + 3
-		xf.MergeCell(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row))
-		xf.SetCellValue(sheet, fmt.Sprintf("A%d", row), s)
+		b.xf.MergeCell(b.sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row))
+		b.xf.SetCellValue(b.sheet, fmt.Sprintf("A%d", row), label)
 	}
+}
 
-	xf.SetCellValue(sheet, "A7", "First Name")
-	xf.SetCellValue(sheet, "B7", "Last Name")
-	xf.SetCellValue(sheet, "C7", "Student ID")
+func (b *ExcelBuilder) writeStatLabels() {}
 
-	for i := range dm.Questions {
+func (b *ExcelBuilder) writeDataTableHeaders() {
+	b.xf.SetCellValue(b.sheet, "A7", "First Name")
+	b.xf.SetCellValue(b.sheet, "B7", "Last Name")
+	b.xf.SetCellValue(b.sheet, "C7", "Student ID")
+}
+
+func (b *ExcelBuilder) writeQuestionStatFormulas() {
+	for i := range b.questions {
 		c := i + 4
 		colName, _ := excelize.ColumnNumberToName(c)
-		dr := fmt.Sprintf("%s%d:%s%d", colName, dataStartRow, colName, maxR)
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", colName), fmt.Sprintf("=COUNT(%s)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", colName), fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", colName), fmt.Sprintf("=IFERROR(MEDIAN(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", colName), fmt.Sprintf("=IFERROR(MAX(%s), 0)", dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s6", colName), fmt.Sprintf("=IFERROR(MIN(%s), 0)", dr))
+		dr := b.dataRange(colName)
+		b.xf.SetCellFormula(b.sheet, colName+"2", fmt.Sprintf("=COUNT(%s)", dr))
+		b.xf.SetCellFormula(b.sheet, colName+"3", fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
+		b.xf.SetCellFormula(b.sheet, colName+"4", fmt.Sprintf("=IFERROR(MEDIAN(%s), 0)", dr))
+		b.xf.SetCellFormula(b.sheet, colName+"5", fmt.Sprintf("=IFERROR(MAX(%s), 0)", dr))
+		b.xf.SetCellFormula(b.sheet, colName+"6", fmt.Sprintf("=IFERROR(MIN(%s), 0)", dr))
 	}
-	if len(dm.Questions) > 0 {
-		dr := fmt.Sprintf("%s%d:%s%d", totColName, dataStartRow, totColName, maxR)
-		fgr := fmt.Sprintf("%s%d:%s%d", fgColName, dataStartRow, fgColName, maxR)
-		n := fmt.Sprintf("SUMPRODUCT((%s=\"☑\")*1)", fgr)
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s2", totColName), fmt.Sprintf(`=COUNTIF(%s, "☑")`, fgr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s3", totColName), fmt.Sprintf(`=IFERROR(AVERAGEIF(%s, "☑", %s), 0)`, fgr, dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s4", totColName), fmt.Sprintf(`=IFERROR(IF(%[1]s=0, 0, (SUMPRODUCT(SMALL(IF(%[2]s="☑", %[3]s, 10^9), INT((%[1]s+1)/2))) + SUMPRODUCT(SMALL(IF(%[2]s="☑", %[3]s, 10^9), INT((%[1]s+2)/2)))) / 2), 0)`, n, fgr, dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s5", totColName), fmt.Sprintf(`=IFERROR(SUMPRODUCT(MAX((%s="☑")*%s)), 0)`, fgr, dr))
-		xf.SetCellFormula(sheet, fmt.Sprintf("%s6", totColName), fmt.Sprintf(`=IFERROR(IF(%s=0, 0, SUMPRODUCT(MIN(IF(%s="☑", %s, 10^9)))), 0)`, n, fgr, dr))
-	}
+}
 
-	for rIdx, s := range dm.Students {
-		row := rIdx + dataStartRow
-		xf.SetCellValue(sheet, fmt.Sprintf("A%d", row), s.Name)
-		xf.SetCellValue(sheet, fmt.Sprintf("B%d", row), s.Surname)
-		xf.SetCellValue(sheet, fmt.Sprintf("C%d", row), s.ID)
-		for i, q := range dm.Questions {
-			c := i + 4
-			colName, _ := excelize.ColumnNumberToName(c)
-			cell := fmt.Sprintf("%s%d", colName, row)
-			if s.NotSubmitted {
-				xf.SetCellValue(sheet, cell, "")
-			} else {
-				if val, ok := s.Grades[q].(float64); ok {
-					xf.SetCellValue(sheet, cell, val)
-				} else {
-					xf.SetCellValue(sheet, cell, "")
-				}
-			}
-		}
-		if s.NotSubmitted {
-			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☑")
-		} else {
-			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", nsColName, row), "☐")
-		}
-		xf.SetCellValue(sheet, fmt.Sprintf("%s%d", descColName, row), s.Description)
-		if s.FullyGraded {
-			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", fgColName, row), "☑")
-		} else {
-			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", fgColName, row), "☐")
-		}
-		if s.Flagged {
-			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", flagColName, row), "☑")
-		} else {
-			xf.SetCellValue(sheet, fmt.Sprintf("%s%d", flagColName, row), "☐")
-		}
-		if len(dm.Questions) > 0 {
-			firstQ, _ := excelize.ColumnNumberToName(4)
-			lastQ, _ := excelize.ColumnNumberToName(3 + len(dm.Questions))
-			formula := fmt.Sprintf(`=IF(%s%d="☑", 0, IF(%s%d="☑", SUM(%s%d:%s%d), ""))`, nsColName, row, fgColName, row, firstQ, row, lastQ, row)
-			xf.SetCellFormula(sheet, fmt.Sprintf("%s%d", totColName, row), formula)
-		}
+func (b *ExcelBuilder) writeTotalStatFormulas() {
+	if len(b.questions) == 0 {
+		return
 	}
+	dr := b.dataRange(b.totColName)
+	fgr := b.dataRange(b.fgColName)
+	n := fmt.Sprintf(`SUMPRODUCT((%s="☑")*1)`, fgr)
+	b.xf.SetCellFormula(b.sheet, b.totColName+"2", fmt.Sprintf(`=COUNTIF(%s, "☑")`, fgr))
+	b.xf.SetCellFormula(b.sheet, b.totColName+"3", fmt.Sprintf(`=IFERROR(AVERAGEIF(%s, "☑", %s), 0)`, fgr, dr))
+	b.xf.SetCellFormula(b.sheet, b.totColName+"4", fmt.Sprintf(
+		`=IFERROR(IF(%[1]s=0, 0, (SUMPRODUCT(SMALL(IF(%[2]s="☑", %[3]s, 10^9), INT((%[1]s+1)/2))) + SUMPRODUCT(SMALL(IF(%[2]s="☑", %[3]s, 10^9), INT((%[1]s+2)/2)))) / 2), 0)`,
+		n, fgr, dr))
+	b.xf.SetCellFormula(b.sheet, b.totColName+"5", fmt.Sprintf(`=IFERROR(SUMPRODUCT(MAX((%s="☑")*%s)), 0)`, fgr, dr))
+	b.xf.SetCellFormula(b.sheet, b.totColName+"6", fmt.Sprintf(`=IFERROR(IF(%s=0, 0, SUMPRODUCT(MIN(IF(%s="☑", %s, 10^9)))), 0)`, n, fgr, dr))
+}
 
-	xf.SetColWidth(sheet, "A", "C", 18)
-	for c := 4; c < descColIdx; c++ {
+func (b *ExcelBuilder) dataRange(colName string) string {
+	return fmt.Sprintf("%s%d:%s%d", colName, b.dataStartRow, colName, b.maxR)
+}
+
+func (b *ExcelBuilder) writeStudentRows(students []*models.Student) {
+	for rIdx, s := range students {
+		b.writeStudentRow(rIdx+b.dataStartRow, s)
+	}
+}
+
+func (b *ExcelBuilder) writeStudentRow(row int, s *models.Student) {
+	b.xf.SetCellValue(b.sheet, fmt.Sprintf("A%d", row), s.Name)
+	b.xf.SetCellValue(b.sheet, fmt.Sprintf("B%d", row), s.Surname)
+	b.xf.SetCellValue(b.sheet, fmt.Sprintf("C%d", row), s.ID)
+	for i, q := range b.questions {
+		c := i + 4
 		colName, _ := excelize.ColumnNumberToName(c)
-		xf.SetColWidth(sheet, colName, colName, 12)
-	}
-	xf.SetColWidth(sheet, descColName, descColName, 50)
-	xf.SetColWidth(sheet, nsColName, nsColName, 14)
-	xf.SetColWidth(sheet, fgColName, fgColName, 14)
-	xf.SetColWidth(sheet, flagColName, flagColName, 12)
-
-	if len(dm.Students) > 0 {
-		dv := excelize.NewDataValidation(true)
-		dv.SetSqref(fmt.Sprintf("%s%d:%s%d", nsColName, dataStartRow, flagColName, maxR))
-		if err := dv.SetDropList([]string{"☐", "☑"}); err == nil {
-			xf.AddDataValidation(sheet, dv)
+		cell := fmt.Sprintf("%s%d", colName, row)
+		if s.NotSubmitted {
+			b.xf.SetCellValue(b.sheet, cell, "")
+		} else if val, ok := s.Grades[q].(float64); ok {
+			b.xf.SetCellValue(b.sheet, cell, val)
+		} else {
+			b.xf.SetCellValue(b.sheet, cell, "")
 		}
 	}
+	b.writeStudentFlags(row, s)
+	b.writeStudentTotalFormula(row)
+}
 
-	styleCache := make(map[string]int)
-	for r := 1; r <= maxR; r++ {
-		for c := 1; c <= maxC; c++ {
-			bold := r <= 7
-			isDesc := (c == descColIdx)
-			align := &excelize.Alignment{Horizontal: "center", Vertical: "center"}
-			if isDesc && r >= dataStartRow {
-				align = &excelize.Alignment{Horizontal: "right", Vertical: "top", WrapText: true}
-			}
-			top, bottom, left, right := 1, 1, 1, 1
-			if r == 1 {
-				top, bottom = 5, 5
-			}
-			if r == 2 {
-				top = 5
-			}
-			if r == 7 {
-				top, bottom = 5, 5
-			}
-			if r == dataStartRow {
-				top = 5
-			}
-			if r == maxR {
-				bottom = 5
-			}
-			if c == 1 {
-				left = 5
-			}
-			if c == 3 {
-				right = 5
-			}
-			if c == 4 {
-				left = 5
-			}
-			if c == maxC {
-				right = 5
-			}
-			key := fmt.Sprintf("%v_%v_%d_%d_%d_%d", bold, isDesc, top, bottom, left, right)
-			sID, exists := styleCache[key]
-			if !exists {
-				border := []excelize.Border{
-					{Type: "top", Color: "000000", Style: top},
-					{Type: "bottom", Color: "000000", Style: bottom},
-					{Type: "left", Color: "000000", Style: left},
-					{Type: "right", Color: "000000", Style: right},
-				}
-				fnt := &excelize.Font{Family: "Vazirmatn", Size: 11}
-				if bold {
-					fnt.Bold = true
-				}
-				cellStyle := &excelize.Style{
-					Font:      fnt,
-					Alignment: align,
-					Border:    border,
-				}
-				sID, _ = xf.NewStyle(cellStyle)
-				styleCache[key] = sID
-			}
+func (b *ExcelBuilder) writeStudentFlags(row int, s *models.Student) {
+	b.xf.SetCellValue(b.sheet, fmt.Sprintf("%s%d", b.nsColName, row), checkSymbol(s.NotSubmitted))
+	b.xf.SetCellValue(b.sheet, fmt.Sprintf("%s%d", b.descColName, row), s.Description)
+	b.xf.SetCellValue(b.sheet, fmt.Sprintf("%s%d", b.fgColName, row), checkSymbol(s.FullyGraded))
+	b.xf.SetCellValue(b.sheet, fmt.Sprintf("%s%d", b.flagColName, row), checkSymbol(s.Flagged))
+}
+
+func checkSymbol(checked bool) string {
+	if checked {
+		return "☑"
+	}
+	return "☐"
+}
+
+func (b *ExcelBuilder) writeStudentTotalFormula(row int) {
+	if len(b.questions) == 0 {
+		return
+	}
+	firstQ, _ := excelize.ColumnNumberToName(4)
+	lastQ, _ := excelize.ColumnNumberToName(3 + len(b.questions))
+	formula := fmt.Sprintf(`=IF(%s%d="☑", 0, IF(%s%d="☑", SUM(%s%d:%s%d), ""))`,
+		b.nsColName, row, b.fgColName, row, firstQ, row, lastQ, row)
+	b.xf.SetCellFormula(b.sheet, fmt.Sprintf("%s%d", b.totColName, row), formula)
+}
+
+func (b *ExcelBuilder) setColumnWidths() {
+	b.xf.SetColWidth(b.sheet, "A", "C", 18)
+	for c := 4; c < b.descColIdx; c++ {
+		colName, _ := excelize.ColumnNumberToName(c)
+		b.xf.SetColWidth(b.sheet, colName, colName, 12)
+	}
+	b.xf.SetColWidth(b.sheet, b.descColName, b.descColName, 50)
+	b.xf.SetColWidth(b.sheet, b.nsColName, b.nsColName, 14)
+	b.xf.SetColWidth(b.sheet, b.fgColName, b.fgColName, 14)
+	b.xf.SetColWidth(b.sheet, b.flagColName, b.flagColName, 12)
+}
+
+func (b *ExcelBuilder) addCheckboxValidation() {
+	dv := excelize.NewDataValidation(true)
+	dv.SetSqref(fmt.Sprintf("%s%d:%s%d", b.nsColName, b.dataStartRow, b.flagColName, b.maxR))
+	if err := dv.SetDropList([]string{"☐", "☑"}); err == nil {
+		b.xf.AddDataValidation(b.sheet, dv)
+	}
+}
+
+func (b *ExcelBuilder) applyCellStyles() {
+	for r := 1; r <= b.maxR; r++ {
+		for c := 1; c <= b.maxC; c++ {
+			styleID := b.computeCellStyle(r, c)
 			colName, _ := excelize.ColumnNumberToName(c)
-			cell := fmt.Sprintf("%s%d", colName, r)
-			xf.SetCellStyle(sheet, cell, cell, sID)
+			b.xf.SetCellStyle(b.sheet, fmt.Sprintf("%s%d", colName, r), fmt.Sprintf("%s%d", colName, r), styleID)
 		}
 	}
+}
 
-	xf.SetPanes(sheet, &excelize.Panes{
+func (b *ExcelBuilder) computeCellStyle(row, col int) int {
+	bold := row <= 7
+	isDesc := col == b.descColIdx
+	align := b.cellAlignment(row, isDesc)
+	top, bottom, left, right := b.cellBorders(row, col)
+	key := fmt.Sprintf("%v_%v_%d_%d_%d_%d", bold, isDesc, top, bottom, left, right)
+	if sID, exists := b.stylesCache[key]; exists {
+		return sID
+	}
+	sID := b.createStyle(bold, align, top, bottom, left, right)
+	b.stylesCache[key] = sID
+	return sID
+}
+
+func (b *ExcelBuilder) cellAlignment(row int, isDesc bool) *excelize.Alignment {
+	if isDesc && row >= b.dataStartRow {
+		return &excelize.Alignment{Horizontal: "right", Vertical: "top", WrapText: true}
+	}
+	return &excelize.Alignment{Horizontal: "center", Vertical: "center"}
+}
+
+func (b *ExcelBuilder) cellBorders(row, col int) (top, bottom, left, right int) {
+	top, bottom, left, right = 1, 1, 1, 1
+	switch row {
+	case 1:
+		top, bottom = 5, 5
+	case 2:
+		top = 5
+	case 7:
+		top, bottom = 5, 5
+	case b.dataStartRow:
+		top = 5
+	case b.maxR:
+		bottom = 5
+	}
+	switch col {
+	case 1:
+		left = 5
+	case 3:
+		right = 5
+	case 4:
+		left = 5
+	case b.maxC:
+		right = 5
+	}
+	return
+}
+
+func (b *ExcelBuilder) createStyle(bold bool, align *excelize.Alignment, top, bottom, left, right int) int {
+	border := []excelize.Border{
+		{Type: "top", Color: "000000", Style: top},
+		{Type: "bottom", Color: "000000", Style: bottom},
+		{Type: "left", Color: "000000", Style: left},
+		{Type: "right", Color: "000000", Style: right},
+	}
+	fnt := &excelize.Font{Family: "Vazirmatn", Size: 11}
+	if bold {
+		fnt.Bold = true
+	}
+	sID, _ := b.xf.NewStyle(&excelize.Style{
+		Font:      fnt,
+		Alignment: align,
+		Border:    border,
+	})
+	return sID
+}
+
+func (b *ExcelBuilder) configurePanes() {
+	b.xf.SetPanes(b.sheet, &excelize.Panes{
 		Freeze:      true,
 		Split:       false,
 		XSplit:      3,
@@ -249,14 +361,19 @@ func (dm *DataManager) ExportFiles() {
 		TopLeftCell: "D2",
 		ActivePane:  "bottomRight",
 	})
-	xf.SetSheetView(sheet, 0, &excelize.ViewOptions{RightToLeft: func(b bool) *bool { return &b }(false)})
-	xf.SaveAs(dm.ExcelPath)
+	b.xf.SetSheetView(b.sheet, 0, &excelize.ViewOptions{RightToLeft: func(b bool) *bool { return &b }(false)})
+}
 
-	if len(dm.Students) > 0 {
-		sqref := fmt.Sprintf("A%d:C%d", dataStartRow, maxR)
-		formula := fmt.Sprintf(`$%s%d="☑"`, flagColName, dataStartRow)
-		injectFlagHighlight(dm.ExcelPath, sqref, formula)
-	}
+func (b *ExcelBuilder) save(path string) {
+	b.xf.SaveAs(path)
+}
+
+func (b *ExcelBuilder) flagSqref() string {
+	return fmt.Sprintf("A%d:C%d", b.dataStartRow, b.maxR)
+}
+
+func (b *ExcelBuilder) flagFormula() string {
+	return fmt.Sprintf(`$%s%d="☑"`, b.flagColName, b.dataStartRow)
 }
 
 func injectFlagHighlight(xlsxPath, sqref, formula string) error {
@@ -264,25 +381,37 @@ func injectFlagHighlight(xlsxPath, sqref, formula string) error {
 	if err != nil {
 		return err
 	}
-	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	entries, order, err := unzipBytes(raw)
 	if err != nil {
 		return err
 	}
+	dxfID := injectDxfStyle(entries)
+	injectConditionalRule(entries, sqref, formula, dxfID)
+	return repackZip(entries, order, xlsxPath)
+}
+
+func unzipBytes(raw []byte) (map[string][]byte, []string, error) {
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		return nil, nil, err
+	}
 	entries := make(map[string][]byte)
-	var names []string
+	var order []string
 	for _, zf := range zr.File {
 		rc, err := zf.Open()
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 		b, _ := io.ReadAll(rc)
 		rc.Close()
 		entries[zf.Name] = b
-		names = append(names, zf.Name)
+		order = append(order, zf.Name)
 	}
+	return entries, order, nil
+}
 
+func injectDxfStyle(entries map[string][]byte) int {
 	dxf := `<dxf><fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor rgb="FFFFFF00"/></patternFill></fill></dxf>`
-	dxfID := 0
 	styles := string(entries["xl/styles.xml"])
 	if idx := strings.Index(styles, "<dxfs"); idx != -1 {
 		rest := styles[idx:]
@@ -292,23 +421,25 @@ func injectFlagHighlight(xlsxPath, sqref, formula string) error {
 		if ci := strings.Index(tag, `count="`); ci != -1 {
 			fmt.Sscanf(tag[ci+7:], "%d", &count)
 		}
-		dxfID = count
 		newTag := strings.Replace(tag, fmt.Sprintf(`count="%d"`, count), fmt.Sprintf(`count="%d"`, count+1), 1)
-		selfClosing := strings.HasSuffix(tag, "/>")
-		if selfClosing {
-			newTag = strings.TrimSuffix(newTag, "/>") + dxf + `</dxfs>`
-			styles = strings.Replace(styles, tag, newTag, 1)
+		if strings.HasSuffix(tag, "/>") {
+			styles = strings.Replace(styles, tag, strings.TrimSuffix(newTag, "/>")+dxf+`</dxfs>`, 1)
 		} else {
 			styles = strings.Replace(styles, tag, newTag, 1)
 			styles = strings.Replace(styles, `</dxfs>`, dxf+`</dxfs>`, 1)
 		}
-	} else {
-		styles = strings.Replace(styles, `<cellStyles`, `<dxfs count="1">`+dxf+`</dxfs><cellStyles`, 1)
+		entries["xl/styles.xml"] = []byte(styles)
+		return count
 	}
+	styles = strings.Replace(styles, `</cellStyles>`, `</cellStyles><dxfs count="1">`+dxf+`</dxfs>`, 1)
 	entries["xl/styles.xml"] = []byte(styles)
+	return 0
+}
 
+func injectConditionalRule(entries map[string][]byte, sqref, formula string, dxfID int) {
 	escFormula := strings.ReplaceAll(formula, `"`, "&quot;")
-	cf := fmt.Sprintf(`<conditionalFormatting sqref="%s"><cfRule type="expression" priority="1" dxfId="%d"><formula>%s</formula></cfRule></conditionalFormatting>`, sqref, dxfID, escFormula)
+	cf := fmt.Sprintf(`<conditionalFormatting sqref="%s"><cfRule type="expression" priority="1" dxfId="%d"><formula>%s</formula></cfRule></conditionalFormatting>`,
+		sqref, dxfID, escFormula)
 	sheet := string(entries["xl/worksheets/sheet1.xml"])
 	if idx := strings.Index(sheet, "<dataValidations"); idx != -1 {
 		sheet = sheet[:idx] + cf + sheet[idx:]
@@ -316,10 +447,12 @@ func injectFlagHighlight(xlsxPath, sqref, formula string) error {
 		sheet = strings.Replace(sheet, `</worksheet>`, cf+`</worksheet>`, 1)
 	}
 	entries["xl/worksheets/sheet1.xml"] = []byte(sheet)
+}
 
+func repackZip(entries map[string][]byte, order []string, destPath string) error {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	for _, name := range names {
+	for _, name := range order {
 		w, err := zw.Create(name)
 		if err != nil {
 			return err
@@ -331,5 +464,5 @@ func injectFlagHighlight(xlsxPath, sqref, formula string) error {
 	if err := zw.Close(); err != nil {
 		return err
 	}
-	return os.WriteFile(xlsxPath, buf.Bytes(), 0644)
+	return os.WriteFile(destPath, buf.Bytes(), 0644)
 }
