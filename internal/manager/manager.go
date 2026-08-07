@@ -15,6 +15,19 @@ import (
 	"grader/internal/utils"
 )
 
+const (
+	outputDir = "output"
+	pdfDir    = "PDFs"
+	dataDir   = "Data"
+	dirPerm   = 0755
+
+	bom       = "\xef\xbb\xbf"
+	missingID = "nan"
+
+	studentsTemplate = bom + "نام,نام خانوادگی,نام کاربری\n"
+	rubricTemplate   = bom + "Question,Max Grade\nسوال ۱,20\nسوال ۲,30\nسوال ۳,50\n"
+)
+
 type DataManager struct {
 	Students  []*models.Student
 	Questions []string
@@ -28,15 +41,15 @@ type DataManager struct {
 
 func NewDataManager() (*DataManager, bool) {
 	dm := &DataManager{
-		OutputDir: "output",
-		PDFDir:    "PDFs",
-		DataDir:   "Data",
+		OutputDir: outputDir,
+		PDFDir:    pdfDir,
+		DataDir:   dataDir,
 	}
 	dm.ExcelPath = filepath.Join(dm.OutputDir, "grades.xlsx")
 	dm.CSVPath = filepath.Join(dm.OutputDir, "grades.csv")
-	os.MkdirAll(dm.OutputDir, 0755)
-	os.MkdirAll(dm.PDFDir, 0755)
-	os.MkdirAll(dm.DataDir, 0755)
+	os.MkdirAll(dm.OutputDir, dirPerm)
+	os.MkdirAll(dm.PDFDir, dirPerm)
+	os.MkdirAll(dm.DataDir, dirPerm)
 	if dm.checkAndCreateTemplates() {
 		return nil, true
 	}
@@ -54,13 +67,13 @@ func (dm *DataManager) checkAndCreateTemplates() bool {
 	rubricFile := filepath.Join(dm.DataDir, "rubric.csv")
 	if _, err := os.Stat(studentsFile); os.IsNotExist(err) {
 		f, _ := os.Create(studentsFile)
-		f.WriteString("\xef\xbb\xbfنام,نام خانوادگی,نام کاربری\n")
+		f.WriteString(studentsTemplate)
 		f.Close()
 		needsSetup = true
 	}
 	if _, err := os.Stat(rubricFile); os.IsNotExist(err) {
 		f, _ := os.Create(rubricFile)
-		f.WriteString("\xef\xbb\xbfQuestion,Max Grade\nسوال ۱,20\nسوال ۲,30\nسوال ۳,50\n")
+		f.WriteString(rubricTemplate)
 		f.Close()
 		needsSetup = true
 	}
@@ -172,7 +185,7 @@ func (dm *DataManager) parseHeaders(row []string) map[string]int {
 
 func (dm *DataManager) parseStudentRow(row []string, headers map[string]int, idx int) *models.Student {
 	id := utils.CleanID(row[headers["نام کاربری"]])
-	if id == "" || id == "nan" {
+	if id == "" || id == missingID {
 		return nil
 	}
 	name := strings.TrimSpace(row[headers["نام"]])
@@ -269,7 +282,7 @@ func (dm *DataManager) applySavedRow(row []string, headers map[string]int) {
 		return
 	}
 	id := utils.CleanID(row[idIdx])
-	if id == "" || id == "nan" {
+	if id == "" || id == missingID {
 		return
 	}
 	s := dm.findStudent(id)
@@ -451,3 +464,4 @@ func (dm *DataManager) calculateMedian(vals []float64) float64 {
 	}
 	return math.Round(med*100) / 100
 }
+

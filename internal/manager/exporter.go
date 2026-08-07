@@ -13,25 +13,49 @@ import (
 	"grader/internal/models"
 )
 
+const (
+	sheetName   = "Sheet1"
+	defaultFont = "Vazirmatn"
+	fontSize    = 11
+
+	dataStartRow     = 8
+	firstQuestionCol = 4
+
+	checkOn  = "☑"
+	checkOff = "☐"
+
+	borderThin  = 1
+	borderThick = 5
+	borderColor = "000000"
+
+	colWidthIdentity = 18
+	colWidthGrade    = 12
+	colWidthDesc     = 50
+	colWidthCheck    = 14
+	colWidthFlag     = 12
+
+	hugeNum   = "10^9"
+	yellowRGB = "FFFFFF00"
+)
+
 type ExcelBuilder struct {
-	xf             *excelize.File
-	sheet          string
-	dataStartRow   int
-	maxR           int
-	maxC           int
-	nsColIdx       int
-	nsColName      string
-	descColIdx     int
-	descColName    string
-	fgColIdx       int
-	fgColName      string
-	flagColIdx     int
-	flagColName    string
-	totColIdx      int
-	totColName     string
-	questions      []string
-	stylesCache    map[string]int
-	defaultStyleID int
+	xf           *excelize.File
+	sheet        string
+	dataStartRow int
+	maxR         int
+	maxC         int
+	nsColIdx     int
+	nsColName    string
+	descColIdx   int
+	descColName  string
+	fgColIdx     int
+	fgColName    string
+	flagColIdx   int
+	flagColName  string
+	totColIdx    int
+	totColName   string
+	questions    []string
+	stylesCache  map[string]int
 }
 
 func (dm *DataManager) ExportFiles() {
@@ -91,7 +115,6 @@ func (dm *DataManager) writeExcelReport() {
 	b.initFile()
 	b.writeQuestionHeaders()
 	b.writeMetaHeaders()
-	b.writeStatLabels()
 	b.writeDataTableHeaders()
 	b.writeQuestionStatFormulas()
 	b.writeTotalStatFormulas()
@@ -107,7 +130,6 @@ func (dm *DataManager) writeExcelReport() {
 }
 
 func newExcelBuilder(questions []string, studentCount int) *ExcelBuilder {
-	dataStartRow := 8
 	maxR := dataStartRow + studentCount - 1
 	if studentCount == 0 {
 		maxR = dataStartRow
@@ -116,7 +138,7 @@ func newExcelBuilder(questions []string, studentCount int) *ExcelBuilder {
 		"Total Score", "Description", "Not Submitted", "Fully Graded", "Flagged")
 	maxC := len(exHeaders)
 	return &ExcelBuilder{
-		sheet:        "Sheet1",
+		sheet:        sheetName,
 		dataStartRow: dataStartRow,
 		maxR:         maxR,
 		maxC:         maxC,
@@ -132,7 +154,7 @@ func newExcelBuilder(questions []string, studentCount int) *ExcelBuilder {
 
 func (b *ExcelBuilder) initFile() {
 	b.xf = excelize.NewFile()
-	b.xf.SetDefaultFont("Vazirmatn")
+	b.xf.SetDefaultFont(defaultFont)
 	b.nsColName, _ = excelize.ColumnNumberToName(b.nsColIdx)
 	b.descColName, _ = excelize.ColumnNumberToName(b.descColIdx)
 	b.fgColName, _ = excelize.ColumnNumberToName(b.fgColIdx)
@@ -142,8 +164,7 @@ func (b *ExcelBuilder) initFile() {
 
 func (b *ExcelBuilder) writeQuestionHeaders() {
 	for i, q := range b.questions {
-		c := i + 4
-		colName, _ := excelize.ColumnNumberToName(c)
+		colName, _ := excelize.ColumnNumberToName(i + firstQuestionCol)
 		b.xf.SetCellValue(b.sheet, fmt.Sprintf("%s1", colName), q)
 	}
 	b.xf.SetCellValue(b.sheet, b.totColName+"1", "Total Score")
@@ -163,8 +184,6 @@ func (b *ExcelBuilder) writeMetaHeaders() {
 	}
 }
 
-func (b *ExcelBuilder) writeStatLabels() {}
-
 func (b *ExcelBuilder) writeDataTableHeaders() {
 	b.xf.SetCellValue(b.sheet, "A7", "First Name")
 	b.xf.SetCellValue(b.sheet, "B7", "Last Name")
@@ -173,8 +192,7 @@ func (b *ExcelBuilder) writeDataTableHeaders() {
 
 func (b *ExcelBuilder) writeQuestionStatFormulas() {
 	for i := range b.questions {
-		c := i + 4
-		colName, _ := excelize.ColumnNumberToName(c)
+		colName, _ := excelize.ColumnNumberToName(i + firstQuestionCol)
 		dr := b.dataRange(colName)
 		b.xf.SetCellFormula(b.sheet, colName+"2", fmt.Sprintf("=COUNT(%s)", dr))
 		b.xf.SetCellFormula(b.sheet, colName+"3", fmt.Sprintf("=IFERROR(AVERAGE(%s), 0)", dr))
@@ -190,14 +208,14 @@ func (b *ExcelBuilder) writeTotalStatFormulas() {
 	}
 	dr := b.dataRange(b.totColName)
 	fgr := b.dataRange(b.fgColName)
-	n := fmt.Sprintf(`SUMPRODUCT((%s="☑")*1)`, fgr)
-	b.xf.SetCellFormula(b.sheet, b.totColName+"2", fmt.Sprintf(`=COUNTIF(%s, "☑")`, fgr))
-	b.xf.SetCellFormula(b.sheet, b.totColName+"3", fmt.Sprintf(`=IFERROR(AVERAGEIF(%s, "☑", %s), 0)`, fgr, dr))
+	n := fmt.Sprintf(`SUMPRODUCT((%s="%s")*1)`, fgr, checkOn)
+	b.xf.SetCellFormula(b.sheet, b.totColName+"2", fmt.Sprintf(`=COUNTIF(%s, "%s")`, fgr, checkOn))
+	b.xf.SetCellFormula(b.sheet, b.totColName+"3", fmt.Sprintf(`=IFERROR(AVERAGEIF(%s, "%s", %s), 0)`, fgr, checkOn, dr))
 	b.xf.SetCellFormula(b.sheet, b.totColName+"4", fmt.Sprintf(
-		`=IFERROR(IF(%[1]s=0, 0, (SUMPRODUCT(SMALL(IF(%[2]s="☑", %[3]s, 10^9), INT((%[1]s+1)/2))) + SUMPRODUCT(SMALL(IF(%[2]s="☑", %[3]s, 10^9), INT((%[1]s+2)/2)))) / 2), 0)`,
-		n, fgr, dr))
-	b.xf.SetCellFormula(b.sheet, b.totColName+"5", fmt.Sprintf(`=IFERROR(SUMPRODUCT(MAX((%s="☑")*%s)), 0)`, fgr, dr))
-	b.xf.SetCellFormula(b.sheet, b.totColName+"6", fmt.Sprintf(`=IFERROR(IF(%s=0, 0, SUMPRODUCT(MIN(IF(%s="☑", %s, 10^9)))), 0)`, n, fgr, dr))
+		`=IFERROR(IF(%[1]s=0, 0, (SUMPRODUCT(SMALL(IF(%[2]s="%[4]s", %[3]s, %[5]s), INT((%[1]s+1)/2))) + SUMPRODUCT(SMALL(IF(%[2]s="%[4]s", %[3]s, %[5]s), INT((%[1]s+2)/2)))) / 2), 0)`,
+		n, fgr, dr, checkOn, hugeNum))
+	b.xf.SetCellFormula(b.sheet, b.totColName+"5", fmt.Sprintf(`=IFERROR(SUMPRODUCT(MAX((%s="%s")*%s)), 0)`, fgr, checkOn, dr))
+	b.xf.SetCellFormula(b.sheet, b.totColName+"6", fmt.Sprintf(`=IFERROR(IF(%s=0, 0, SUMPRODUCT(MIN(IF(%s="%s", %s, %s)))), 0)`, n, fgr, checkOn, dr, hugeNum))
 }
 
 func (b *ExcelBuilder) dataRange(colName string) string {
@@ -215,8 +233,7 @@ func (b *ExcelBuilder) writeStudentRow(row int, s *models.Student) {
 	b.xf.SetCellValue(b.sheet, fmt.Sprintf("B%d", row), s.Surname)
 	b.xf.SetCellValue(b.sheet, fmt.Sprintf("C%d", row), s.ID)
 	for i, q := range b.questions {
-		c := i + 4
-		colName, _ := excelize.ColumnNumberToName(c)
+		colName, _ := excelize.ColumnNumberToName(i + firstQuestionCol)
 		cell := fmt.Sprintf("%s%d", colName, row)
 		if s.NotSubmitted {
 			b.xf.SetCellValue(b.sheet, cell, "")
@@ -239,38 +256,38 @@ func (b *ExcelBuilder) writeStudentFlags(row int, s *models.Student) {
 
 func checkSymbol(checked bool) string {
 	if checked {
-		return "☑"
+		return checkOn
 	}
-	return "☐"
+	return checkOff
 }
 
 func (b *ExcelBuilder) writeStudentTotalFormula(row int) {
 	if len(b.questions) == 0 {
 		return
 	}
-	firstQ, _ := excelize.ColumnNumberToName(4)
-	lastQ, _ := excelize.ColumnNumberToName(3 + len(b.questions))
-	formula := fmt.Sprintf(`=IF(%s%d="☑", 0, IF(%s%d="☑", SUM(%s%d:%s%d), ""))`,
-		b.nsColName, row, b.fgColName, row, firstQ, row, lastQ, row)
+	firstQ, _ := excelize.ColumnNumberToName(firstQuestionCol)
+	lastQ, _ := excelize.ColumnNumberToName(firstQuestionCol-1+len(b.questions))
+	formula := fmt.Sprintf(`=IF(%s%d="%s", 0, IF(%s%d="%s", SUM(%s%d:%s%d), ""))`,
+		b.nsColName, row, checkOn, b.fgColName, row, checkOn, firstQ, row, lastQ, row)
 	b.xf.SetCellFormula(b.sheet, fmt.Sprintf("%s%d", b.totColName, row), formula)
 }
 
 func (b *ExcelBuilder) setColumnWidths() {
-	b.xf.SetColWidth(b.sheet, "A", "C", 18)
-	for c := 4; c < b.descColIdx; c++ {
+	b.xf.SetColWidth(b.sheet, "A", "C", colWidthIdentity)
+	for c := firstQuestionCol; c < b.descColIdx; c++ {
 		colName, _ := excelize.ColumnNumberToName(c)
-		b.xf.SetColWidth(b.sheet, colName, colName, 12)
+		b.xf.SetColWidth(b.sheet, colName, colName, colWidthGrade)
 	}
-	b.xf.SetColWidth(b.sheet, b.descColName, b.descColName, 50)
-	b.xf.SetColWidth(b.sheet, b.nsColName, b.nsColName, 14)
-	b.xf.SetColWidth(b.sheet, b.fgColName, b.fgColName, 14)
-	b.xf.SetColWidth(b.sheet, b.flagColName, b.flagColName, 12)
+	b.xf.SetColWidth(b.sheet, b.descColName, b.descColName, colWidthDesc)
+	b.xf.SetColWidth(b.sheet, b.nsColName, b.nsColName, colWidthCheck)
+	b.xf.SetColWidth(b.sheet, b.fgColName, b.fgColName, colWidthCheck)
+	b.xf.SetColWidth(b.sheet, b.flagColName, b.flagColName, colWidthFlag)
 }
 
 func (b *ExcelBuilder) addCheckboxValidation() {
 	dv := excelize.NewDataValidation(true)
 	dv.SetSqref(fmt.Sprintf("%s%d:%s%d", b.nsColName, b.dataStartRow, b.flagColName, b.maxR))
-	if err := dv.SetDropList([]string{"☐", "☑"}); err == nil {
+	if err := dv.SetDropList([]string{checkOff, checkOn}); err == nil {
 		b.xf.AddDataValidation(b.sheet, dv)
 	}
 }
@@ -307,40 +324,40 @@ func (b *ExcelBuilder) cellAlignment(row int, isDesc bool) *excelize.Alignment {
 }
 
 func (b *ExcelBuilder) cellBorders(row, col int) (top, bottom, left, right int) {
-	top, bottom, left, right = 1, 1, 1, 1
+	top, bottom, left, right = borderThin, borderThin, borderThin, borderThin
 	switch row {
 	case 1:
-		top, bottom = 5, 5
+		top, bottom = borderThick, borderThick
 	case 2:
-		top = 5
+		top = borderThick
 	case 7:
-		top, bottom = 5, 5
+		top, bottom = borderThick, borderThick
 	case b.dataStartRow:
-		top = 5
+		top = borderThick
 	case b.maxR:
-		bottom = 5
+		bottom = borderThick
 	}
 	switch col {
 	case 1:
-		left = 5
+		left = borderThick
 	case 3:
-		right = 5
-	case 4:
-		left = 5
+		right = borderThick
+	case firstQuestionCol:
+		left = borderThick
 	case b.maxC:
-		right = 5
+		right = borderThick
 	}
 	return
 }
 
 func (b *ExcelBuilder) createStyle(bold bool, align *excelize.Alignment, top, bottom, left, right int) int {
 	border := []excelize.Border{
-		{Type: "top", Color: "000000", Style: top},
-		{Type: "bottom", Color: "000000", Style: bottom},
-		{Type: "left", Color: "000000", Style: left},
-		{Type: "right", Color: "000000", Style: right},
+		{Type: "top", Color: borderColor, Style: top},
+		{Type: "bottom", Color: borderColor, Style: bottom},
+		{Type: "left", Color: borderColor, Style: left},
+		{Type: "right", Color: borderColor, Style: right},
 	}
-	fnt := &excelize.Font{Family: "Vazirmatn", Size: 11}
+	fnt := &excelize.Font{Family: defaultFont, Size: fontSize}
 	if bold {
 		fnt.Bold = true
 	}
@@ -373,7 +390,7 @@ func (b *ExcelBuilder) flagSqref() string {
 }
 
 func (b *ExcelBuilder) flagFormula() string {
-	return fmt.Sprintf(`$%s%d="☑"`, b.flagColName, b.dataStartRow)
+	return fmt.Sprintf(`$%s%d="%s"`, b.flagColName, b.dataStartRow, checkOn)
 }
 
 func injectFlagHighlight(xlsxPath, sqref, formula string) error {
@@ -411,7 +428,7 @@ func unzipBytes(raw []byte) (map[string][]byte, []string, error) {
 }
 
 func injectDxfStyle(entries map[string][]byte) int {
-	dxf := `<dxf><fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor rgb="FFFFFF00"/></patternFill></fill></dxf>`
+	dxf := `<dxf><fill><patternFill patternType="solid"><fgColor rgb="` + yellowRGB + `"/><bgColor rgb="` + yellowRGB + `"/></patternFill></fill></dxf>`
 	styles := string(entries["xl/styles.xml"])
 	if idx := strings.Index(styles, "<dxfs"); idx != -1 {
 		rest := styles[idx:]

@@ -16,6 +16,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultMoodleID   = "0000000"
+	pdfFileNameFormat = "%s %s_%s_assignsubmission_file_%s.pdf"
+)
+
 type Server struct {
 	router   *gin.Engine
 	dm       *manager.DataManager
@@ -186,12 +191,11 @@ func (s *Server) extractMoodleID() string {
 			}
 		}
 	}
-	return "0000000"
+	return defaultMoodleID
 }
 
 func (s *Server) buildPDFFileName(student *models.Student, moodleID string) string {
-	return fmt.Sprintf("%s %s_%s_assignsubmission_file_%s.pdf",
-		student.Name, student.Surname, moodleID, student.ID)
+	return fmt.Sprintf(pdfFileNameFormat, student.Name, student.Surname, moodleID, student.ID)
 }
 
 func (s *Server) handleGetPDF(c *gin.Context) {
