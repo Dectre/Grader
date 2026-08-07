@@ -9,15 +9,17 @@
 :root[data-theme="light"]{--bg:#f6f8fa;--panel:#ffffff;--text:#1f2328;--border:#d0d7de;--blue:#0969da;--yellow:#b08800;--red:#d73a49;--green:#28a745;--muted:#6a737d;}
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Vazirmatn',Tahoma,sans-serif;}
 body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;transition:background .3s,color .3s;}
+.theme-fab{position:fixed;top:12px;right:12px;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 12px;cursor:pointer;font-size:16px;}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:460px;display:flex;flex-direction:column;gap:14px;}
 .head{display:flex;justify-content:space-between;align-items:center;}
 h1{font-size:19px;}
 .controls{display:flex;gap:6px;}
 .icon-btn{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px;}
 .icon-btn.active{border-color:var(--blue);color:var(--blue);}
-.list{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:6px;padding:8px;}
+.list{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:6px;padding:8px;}
 .item{padding:10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
 .item:hover{border-color:var(--blue);}
+.item.last{border-color:var(--green);}
 .item .sub{font-size:11px;color:var(--muted);}
 .row{display:flex;gap:8px;}
 input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:6px;font-family:inherit;}
@@ -29,6 +31,7 @@ button.primary{background:var(--blue);color:#fff;border:none;border-radius:6px;p
 </style>
 </head>
 <body>
+<button class="theme-fab" id="btnTheme" onclick="toggleTheme()">☀️</button>
 <div class="card">
   <div class="head">
     <h1>📚 Assignments</h1>
@@ -36,9 +39,9 @@ button.primary{background:var(--blue);color:#fff;border:none;border-radius:6px;p
       <button class="icon-btn" id="sortName" onclick="setSortKey('name')">Name</button>
       <button class="icon-btn" id="sortDate" onclick="setSortKey('created')">Date</button>
       <button class="icon-btn" id="sortDir" onclick="toggleSortDir()">↑</button>
-      <button class="icon-btn" id="btnTheme" onclick="toggleTheme()">☀️</button>
     </div>
   </div>
+  <input id="search" placeholder="🔍 Search..." oninput="render()">
   <div class="list" id="list"></div>
   <div class="row">
     <input id="newName" placeholder="New assignment (e.g. HW1)" onkeydown="if(event.key==='Enter')createNew()">
@@ -50,6 +53,7 @@ button.primary{background:var(--blue);color:#fff;border:none;border-radius:6px;p
 let assignments = [];
 let sortKey = localStorage.getItem('grader-sort-key') || 'name';
 let sortDir = localStorage.getItem('grader-sort-dir') || 'asc';
+let lastSelected = localStorage.getItem('grader-last-assignment') || '';
 
 function applySavedTheme() {
     const saved = localStorage.getItem('grader-theme') || 'dark';
@@ -61,6 +65,22 @@ function toggleTheme() {
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('grader-theme', next);
     document.getElementById('btnTheme').innerText = next === 'dark' ? '☀️' : '🌙';
+}
+
+function naturalCompare(a, b) {
+    const pa = a.split(/(\d+)/);
+    const pb = b.split(/(\d+)/);
+    const len = Math.min(pa.length, pb.length);
+    for (let i = 0; i < len; i++) {
+        let cmp;
+        if (i % 2 === 1) {
+            cmp = (parseInt(pa[i], 10) || 0) - (parseInt(pb[i], 10) || 0);
+        } else {
+            cmp = pa[i].localeCompare(pb[i]);
+        }
+        if (cmp !== 0) return cmp;
+    }
+    return pa.length - pb.length;
 }
 
 function updateSortUI() {
@@ -75,7 +95,7 @@ function sortAssignments(arr) {
     const copy = [...arr];
     copy.sort((a, b) => {
         const cmp = sortKey === 'name'
-            ? a.name.localeCompare(b.name)
+            ? naturalCompare(a.name, b.name)
             : (a.created_at || '').localeCompare(b.created_at || '');
         return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -97,16 +117,19 @@ async function load() {
 
 function render() {
     const list = document.getElementById('list');
+    const q = (document.getElementById('search').value || '').toLowerCase();
+    const filtered = assignments.filter(a => a.name.toLowerCase().includes(q));
     list.innerHTML = '';
-    if (assignments.length === 0) {
-        list.innerHTML = '<div class="empty">No assignments yet. Create one below.</div>';
+    if (filtered.length === 0) {
+        list.innerHTML = '<div class="empty">' + (assignments.length === 0 ? 'No assignments yet. Create one below.' : 'No match found.') + '</div>';
         return;
     }
-    sortAssignments(assignments).forEach(a => {
+    sortAssignments(filtered).forEach(a => {
         const d = document.createElement('div');
-        d.className = 'item';
+        d.className = 'item' + (a.name === lastSelected ? ' last' : '');
         const date = a.created_at ? new Date(a.created_at).toLocaleDateString() : '';
-        d.innerHTML = '<div><div>' + a.name + '</div><div class="sub">' + date + '</div></div><span>→</span>';
+        const star = a.name === lastSelected ? ' ⭐' : '';
+        d.innerHTML = '<div><div>' + a.name + star + '</div><div class="sub">' + date + '</div></div><span>→</span>';
         d.onclick = () => select(a.name);
         list.appendChild(d);
     });
@@ -118,6 +141,7 @@ async function select(name) {
     if (data.status === 'needs_setup') {
         log('Fill students.csv & rubric.csv in: ' + data.data_dir + ' — then select it again.', 'err');
     } else {
+        localStorage.setItem('grader-last-assignment', name);
         location.href = '/';
     }
 }
