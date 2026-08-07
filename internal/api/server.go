@@ -136,6 +136,7 @@ func (s *Server) handleSubmit(c *gin.Context) {
 	}
 	total := s.calculateTotal(body.Grades)
 	s.dm.SaveGrade(id, body.Grades, total, body.Comments, body.NotSubmitted)
+	s.dm.Touch()
 	c.JSON(200, gin.H{"status": "success", "stats": s.dm.GetStats()})
 }
 
@@ -164,6 +165,7 @@ func (s *Server) handleFlag(c *gin.Context) {
 		return
 	}
 	s.dm.SetFlag(id, body.Flagged)
+	s.dm.Touch()
 	c.JSON(200, gin.H{"status": "success"})
 }
 
@@ -185,6 +187,7 @@ func (s *Server) handleUpload(c *gin.Context) {
 	c.SaveUploadedFile(file, path)
 	student.PDFPath = path
 	student.HasPDF = true
+	s.dm.Touch()
 	c.JSON(200, gin.H{"status": "success"})
 }
 

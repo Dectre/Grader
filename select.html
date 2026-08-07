@@ -37,7 +37,8 @@ button.primary{background:var(--blue);color:#fff;border:none;border-radius:6px;p
     <h1>📚 Assignments</h1>
     <div class="controls">
       <button class="icon-btn" id="sortName" onclick="setSortKey('name')">Name</button>
-      <button class="icon-btn" id="sortDate" onclick="setSortKey('created')">Date</button>
+      <button class="icon-btn" id="sortCreated" onclick="setSortKey('created')">Created</button>
+      <button class="icon-btn" id="sortModified" onclick="setSortKey('modified')">Modified</button>
       <button class="icon-btn" id="sortDir" onclick="toggleSortDir()">↑</button>
     </div>
   </div>
@@ -85,7 +86,8 @@ function naturalCompare(a, b) {
 
 function updateSortUI() {
     document.getElementById('sortName').classList.toggle('active', sortKey === 'name');
-    document.getElementById('sortDate').classList.toggle('active', sortKey === 'created');
+    document.getElementById('sortCreated').classList.toggle('active', sortKey === 'created');
+    document.getElementById('sortModified').classList.toggle('active', sortKey === 'modified');
     document.getElementById('sortDir').innerText = sortDir === 'asc' ? '↑' : '↓';
 }
 function setSortKey(k) { sortKey = k; localStorage.setItem('grader-sort-key', k); updateSortUI(); render(); }
@@ -94,9 +96,10 @@ function toggleSortDir() { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; localSt
 function sortAssignments(arr) {
     const copy = [...arr];
     copy.sort((a, b) => {
-        const cmp = sortKey === 'name'
-            ? naturalCompare(a.name, b.name)
-            : (a.created_at || '').localeCompare(b.created_at || '');
+        let cmp;
+        if (sortKey === 'name') cmp = naturalCompare(a.name, b.name);
+        else if (sortKey === 'created') cmp = (a.created_at || '').localeCompare(b.created_at || '');
+        else cmp = (a.modified_at || a.created_at || '').localeCompare(b.modified_at || b.created_at || '');
         return sortDir === 'asc' ? cmp : -cmp;
     });
     return copy;
@@ -127,9 +130,10 @@ function render() {
     sortAssignments(filtered).forEach(a => {
         const d = document.createElement('div');
         d.className = 'item' + (a.name === lastSelected ? ' last' : '');
-        const date = a.created_at ? new Date(a.created_at).toLocaleDateString() : '';
         const star = a.name === lastSelected ? ' ⭐' : '';
-        d.innerHTML = '<div><div>' + a.name + star + '</div><div class="sub">' + date + '</div></div><span>→</span>';
+        const c = a.created_at ? new Date(a.created_at).toLocaleDateString() : '';
+        const m = (a.modified_at || a.created_at) ? new Date(a.modified_at || a.created_at).toLocaleDateString() : '';
+        d.innerHTML = '<div><div>' + a.name + star + '</div><div class="sub">🎂 ' + c + ' · ✏️ ' + m + '</div></div><span>→</span>';
         d.onclick = () => select(a.name);
         list.appendChild(d);
     });

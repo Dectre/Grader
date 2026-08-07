@@ -15,9 +15,10 @@ const (
 )
 
 type Assignment struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	CreatedAt string `json:"created_at"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	CreatedAt  string `json:"created_at"`
+	ModifiedAt string `json:"modified_at"`
 }
 
 type registry struct {
@@ -56,10 +57,12 @@ func registerAssignment(name string) {
 			return
 		}
 	}
+	now := time.Now().Format(time.RFC3339)
 	r.Assignments = append(r.Assignments, Assignment{
-		Name:      name,
-		Type:      defaultType,
-		CreatedAt: time.Now().Format(time.RFC3339),
+		Name:       name,
+		Type:       defaultType,
+		CreatedAt:  now,
+		ModifiedAt: now,
 	})
 	saveRegistry(r)
 }
@@ -87,10 +90,12 @@ func migrateRegistry() registry {
 	entries, _ := os.ReadDir(assignmentsDir)
 	for _, e := range entries {
 		if e.IsDir() && hasDataDir(e.Name()) {
+			now := time.Now().Format(time.RFC3339)
 			r.Assignments = append(r.Assignments, Assignment{
-				Name:      e.Name(),
-				Type:      defaultType,
-				CreatedAt: time.Now().Format(time.RFC3339),
+				Name:       e.Name(),
+				Type:       defaultType,
+				CreatedAt:  now,
+				ModifiedAt: now,
 			})
 		}
 	}
@@ -114,4 +119,19 @@ func AssignmentExists(name string) bool {
 		}
 	}
 	return false
+}
+
+func TouchAssignment(name string) {
+	r := loadRegistry()
+	for i := range r.Assignments {
+		if r.Assignments[i].Name == name {
+			r.Assignments[i].ModifiedAt = time.Now().Format(time.RFC3339)
+			break
+		}
+	}
+	saveRegistry(r)
+}
+
+func (dm *DataManager) Touch() {
+	TouchAssignment(filepath.Base(dm.AssignmentDir))
 }

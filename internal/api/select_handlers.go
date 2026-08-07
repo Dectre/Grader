@@ -66,6 +66,7 @@ func (s *Server) handleSelectAssignment(c *gin.Context) {
 		return
 	}
 	s.dm = dm
+	dm.Touch()
 	c.JSON(200, gin.H{"status": "ok"})
 }
 
