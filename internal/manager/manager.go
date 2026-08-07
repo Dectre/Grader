@@ -29,21 +29,23 @@ const (
 )
 
 type DataManager struct {
-	Students  []*models.Student
-	Questions []string
-	MaxGrades []float64
-	OutputDir string
-	ExcelPath string
-	CSVPath   string
-	PDFDir    string
-	DataDir   string
+	AssignmentDir string
+	Students      []*models.Student
+	Questions     []string
+	MaxGrades     []float64
+	OutputDir     string
+	ExcelPath     string
+	CSVPath       string
+	PDFDir        string
+	DataDir       string
 }
 
-func NewDataManager() (*DataManager, bool) {
+func NewDataManager(assignmentDir string) (*DataManager, bool) {
 	dm := &DataManager{
-		OutputDir: outputDir,
-		PDFDir:    pdfDir,
-		DataDir:   dataDir,
+		AssignmentDir: assignmentDir,
+		DataDir:       filepath.Join(assignmentDir, "Data"),
+		PDFDir:        filepath.Join(assignmentDir, "PDFs"),
+		OutputDir:     filepath.Join(assignmentDir, "output"),
 	}
 	dm.ExcelPath = filepath.Join(dm.OutputDir, "grades.xlsx")
 	dm.CSVPath = filepath.Join(dm.OutputDir, "grades.csv")
@@ -92,7 +94,7 @@ func (dm *DataManager) checkAndCreateTemplates() bool {
 }
 
 func (dm *DataManager) loadRubric() {
-	f, err := os.Open(filepath.Join("Data", "rubric.csv"))
+	f, err := os.Open(filepath.Join(dm.DataDir, "rubric.csv"))
 	if err != nil {
 		return
 	}
@@ -150,7 +152,7 @@ func (dm *DataManager) matchPDFByName(cleanFile, firstName, lastName string) boo
 }
 
 func (dm *DataManager) loadStudents() {
-	f, err := os.Open(filepath.Join("Data", "students.csv"))
+	f, err := os.Open(filepath.Join(dm.DataDir, "students.csv"))
 	if err != nil {
 		return
 	}

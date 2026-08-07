@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fa" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Select Assignment</title>
+<style>
+:root[data-theme="dark"]{--bg:#0d1117;--panel:#161b22;--text:#e6edf3;--border:#30363d;--blue:#58a6ff;--yellow:#dbab09;}
+:root[data-theme="light"]{--bg:#f6f8fa;--panel:#ffffff;--text:#1f2328;--border:#d0d7de;--blue:#0969da;--yellow:#b08800;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Vazirmatn',Tahoma,sans-serif;}
+body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:30px;width:440px;}
+h1{font-size:20px;margin-bottom:20px;text-align:center;}
+.item{padding:12px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;}
+.item:hover{border-color:var(--blue);}
+.row{display:flex;gap:8px;margin-top:15px;}
+input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:6px;font-family:inherit;}
+button{background:var(--blue);color:#fff;border:none;border-radius:6px;padding:10px 16px;cursor:pointer;font-weight:bold;font-family:inherit;}
+.msg{margin-top:15px;padding:12px;border-radius:6px;background:rgba(219,171,9,.15);color:var(--yellow);display:none;line-height:1.8;}
+.empty{color:#8b949e;text-align:center;padding:20px 0;}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>📚 Select an Assignment</h1>
+<div id="list"></div>
+<div class="row">
+<input id="newName" placeholder="New assignment (e.g. HW1)">
+<button onclick="createNew()">Create</button>
+</div>
+<div class="msg" id="msg"></div>
+</div>
+<script>
+async function load() {
+    const res = await fetch('/api/assignments');
+    const data = await res.json();
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    if (!data.assignments || data.assignments.length === 0) {
+        list.innerHTML = '<div class="empty">No assignments yet. Create one below.</div>';
+        return;
+    }
+    data.assignments.forEach(n => {
+        const d = document.createElement('div');
+        d.className = 'item';
+        d.innerHTML = '<span>' + n + '</span><span>→</span>';
+        d.onclick = () => select(n);
+        list.appendChild(d);
+    });
+}
+async function select(name) {
+    const res = await fetch('/api/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    const data = await res.json();
+    if (data.status === 'needs_setup') {
+        const m = document.getElementById('msg');
+        m.style.display = 'block';
+        m.innerHTML = 'Fill students.csv & rubric.csv in:<br>' + data.data_dir +
+            '<br><button onclick="location.reload()">Reload</button>';
+    } else {
+        location.href = '/';
+    }
+}
+async function createNew() {
+    const name = document.getElementById('newName').value.trim();
+    if (!name) return;
+    await fetch('/api/assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    document.getElementById('newName').value = '';
+    load();
+}
+load();
+</script>
+</body>
+</html>

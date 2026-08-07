@@ -27,37 +27,46 @@ type Server struct {
 	staticFS embed.FS
 }
 
-func NewServer(dm *manager.DataManager, staticFS embed.FS) *Server {
+func NewServer(staticFS embed.FS) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
-	s := &Server{router: r, dm: dm, staticFS: staticFS}
+	s := &Server{router: r, staticFS: staticFS}
 	s.setupRoutes()
 	return s
 }
 
 func (s *Server) setupRoutes() {
-	s.router.GET("/", func(c *gin.Context) {
-		file, err := s.staticFS.ReadFile("index.html")
-		if err != nil {
-			c.String(500, "Error loading index.html")
-			return
-		}
-		c.Data(200, "text/html; charset=utf-8", file)
-	})
+	s.router.GET("/", s.handleHome)
 
 	subFS, err := fs.Sub(s.staticFS, "fonts")
 	if err == nil {
 		s.router.StaticFS("/fonts", http.FS(subFS))
 	}
 
-	s.router.GET("/api/init", s.handleInit)
-	s.router.GET("/api/student/:id", s.handleGetStudent)
-	s.router.POST("/api/student/:id/submit", s.handleSubmit)
-	s.router.POST("/api/student/:id/flag", s.handleFlag)
-	s.router.POST("/api/student/:id/upload", s.handleUpload)
-	s.router.GET("/api/pdf/:id", s.handleGetPDF)
-	s.router.GET("/api/download/grades", s.handleDownloadGrades)
-	s.router.GET("/api/download/pdf_view", s.handlePDFView)
+	s.router.GET("/api/assignments", s.handleListAssignments)
+	s.router.POST("/api/assignments", s.handleCreateAssignment)
+	s.router.POST("/api/select", s.handleSelectAssignment)
+
+	grading := s.router.Group("/", s.requireDM())
+	grading.GET("/api/init", s.handleInit)
+	grading.GET("/api/student/:id", s.handleGetStudent)
+	grading.POST("/api/student/:id/submit", s.handleSubmit)
+	grading.POST("/api/student/:id/flag", s.handleFlag)
+	grading.POST("/api/student/:id/upload", s.handleUpload)
+	grading.GET("/api/pdf/:id", s.handleGetPDF)
+	grading.GET("/api/download/grades", s.handleDownloadGrades)
+	grading.GET("/api/download/pdf_view", s.handlePDFView)
+}
+
+func (s *Server) requireDM() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if s.dm == nil {
+			c.JSON(http.StatusPreconditionRequired, gin.H{"error": "No assignment selected"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
 }
 
 func (s *Server) Run(addr string) error {

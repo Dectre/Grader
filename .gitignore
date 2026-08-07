@@ -39,9 +39,10 @@ GraderApp.exe
 GraderApp
 
 # Dynamically generated directories (Grades and Uploads)
+Assignments/
 output/
 PDFs/
-Data/
+*.exe
 
 # Error logs
 error_log.txt
