@@ -28,6 +28,11 @@ button.primary{background:var(--blue);color:#fff;border:none;border-radius:6px;p
 .msg.err{display:block;background:rgba(255,123,114,.12);color:var(--red);}
 .msg.ok{display:block;background:rgba(63,185,80,.12);color:var(--green);}
 .empty{color:var(--muted);text-align:center;padding:20px 0;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:10;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;width:460px;display:flex;flex-direction:column;gap:14px;}
+.setup-row{display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:6px;padding:10px;}
+.editor{display:none;flex-direction:column;gap:8px;}
+.editor textarea{width:100%;height:160px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:6px;font-family:monospace;font-size:12px;resize:vertical;}
 </style>
 </head>
 <body>
@@ -50,11 +55,47 @@ button.primary{background:var(--blue);color:#fff;border:none;border-radius:6px;p
   </div>
   <div class="msg" id="msg"></div>
 </div>
+
+<div class="overlay" id="setupOverlay">
+  <div class="modal">
+    <div class="head">
+      <h2 id="setupTitle">Setup</h2>
+      <button class="icon-btn" onclick="closeSetup()">✕</button>
+    </div>
+    <div class="setup-row">
+      <span>📋 Rubric (Question,Max Grade)</span>
+      <div class="row">
+        <button class="icon-btn" onclick="document.getElementById('rubricFile').click()">⬆️ Upload</button>
+        <button class="icon-btn" onclick="editKind('rubric')">✏️ Edit</button>
+      </div>
+      <input type="file" id="rubricFile" accept=".csv" style="display:none" onchange="uploadKind('rubric', this)">
+    </div>
+    <div class="setup-row">
+      <span>👥 Students (نام,نام خانوادگی,نام کاربری)</span>
+      <div class="row">
+        <button class="icon-btn" onclick="document.getElementById('studentsFile').click()">⬆️ Upload</button>
+        <button class="icon-btn" onclick="editKind('students')">✏️ Edit</button>
+      </div>
+      <input type="file" id="studentsFile" accept=".csv" style="display:none" onchange="uploadKind('students', this)">
+    </div>
+    <div class="editor" id="editorBox">
+      <div id="editorLabel" style="font-weight:bold;margin-bottom:6px;"></div>
+      <textarea id="editorText"></textarea>
+      <div class="row">
+        <button class="primary" onclick="saveEditor()">Save</button>
+        <button class="icon-btn" onclick="closeEditor()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 let assignments = [];
 let sortKey = localStorage.getItem('grader-sort-key') || 'name';
 let sortDir = localStorage.getItem('grader-sort-dir') || 'asc';
 let lastSelected = localStorage.getItem('grader-last-assignment') || '';
+let setupName = '';
+let editorKind = '';
 
 function applySavedTheme() {
     const saved = localStorage.getItem('grader-theme') || 'dark';
@@ -133,7 +174,23 @@ function render() {
         const star = a.name === lastSelected ? ' ⭐' : '';
         const c = a.created_at ? new Date(a.created_at).toLocaleDateString() : '';
         const m = (a.modified_at || a.created_at) ? new Date(a.modified_at || a.created_at).toLocaleDateString() : '';
-        d.innerHTML = '<div><div>' + a.name + star + '</div><div class="sub">🎂 ' + c + ' · ✏️ ' + m + '</div></div><span>→</span>';
+
+        const left = document.createElement('div');
+        left.innerHTML = '<div>' + a.name + star + '</div><div class="sub">🎂 ' + c + ' · ✏️ ' + m + '</div>';
+
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex;gap:6px;align-items:center;';
+        const gear = document.createElement('button');
+        gear.className = 'icon-btn';
+        gear.innerText = '⚙️';
+        gear.onclick = (e) => { e.stopPropagation(); openSetup(a.name); };
+        const arrow = document.createElement('span');
+        arrow.innerText = '→';
+        right.appendChild(gear);
+        right.appendChild(arrow);
+
+        d.appendChild(left);
+        d.appendChild(right);
         d.onclick = () => select(a.name);
         list.appendChild(d);
     });
@@ -143,9 +200,10 @@ async function select(name) {
     const res = await fetch('/api/select', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
     const data = await res.json();
     if (data.status === 'needs_setup') {
-        log('Fill students.csv & rubric.csv in: ' + data.data_dir + ' — then select it again.', 'err');
+        log('Files missing for "' + name + '". Use ⚙️ to upload/edit rubric & students, then select again.', 'err');
     } else {
         localStorage.setItem('grader-last-assignment', name);
+        lastSelected = name;
         location.href = '/';
     }
 }
@@ -158,6 +216,44 @@ async function createNew() {
     document.getElementById('newName').value = '';
     log('✅ "' + name + '" created. Select it to start grading.', 'ok');
     load();
+}
+
+function openSetup(name) {
+    setupName = name;
+    document.getElementById('setupTitle').innerText = 'Setup: ' + name;
+    document.getElementById('setupOverlay').style.display = 'flex';
+    closeEditor();
+}
+function closeSetup() { document.getElementById('setupOverlay').style.display = 'none'; }
+function closeEditor() { document.getElementById('editorBox').style.display = 'none'; }
+
+function uploadKind(kind, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    fetch(`/api/assignment/${setupName}/files/${kind}`, { method: 'POST', body: fd })
+        .then(() => { log('✅ ' + kind + '.csv uploaded.', 'ok'); input.value = ''; });
+}
+
+async function editKind(kind) {
+    editorKind = kind;
+    const res = await fetch(`/api/assignment/${setupName}/files/${kind}`);
+    const data = await res.json();
+    document.getElementById('editorLabel').innerText = kind + '.csv';
+    document.getElementById('editorText').value = data.content || '';
+    document.getElementById('editorBox').style.display = 'flex';
+}
+
+async function saveEditor() {
+    const content = document.getElementById('editorText').value;
+    await fetch(`/api/assignment/${setupName}/files/${editorKind}/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+    });
+    log('✅ ' + editorKind + '.csv saved.', 'ok');
+    closeEditor();
 }
 
 applySavedTheme();
