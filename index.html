@@ -199,6 +199,27 @@
 
         .max-btn:hover { box-shadow: 0 0 0 3px rgba(63,185,80,.2); }
         .side-handle, .expand-fab { box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+
+        .sidebar { min-width: 0; }
+        .side-handle { cursor: col-resize; touch-action: none; }
+
+        .panel-head {
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; font-weight: bold; font-size: 13px; padding: 2px 0; user-select: none;
+        }
+        .panel-head .chev { transition: transform .2s; }
+        .panel.collapsed .chev { transform: rotate(-90deg); }
+        .panel.collapsed .panel-body { display: none; }
+        .panel.collapsed { flex: 0 0 auto !important; }
+        .panel .form-area { flex: 1; }
+
+        .info-mini {
+            display: none; font-size: 11px; font-weight: normal;
+            color: var(--text-main); overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        #panelInfo.collapsed .panel-title { display: none; }
+        #panelInfo.collapsed .info-mini { display: inline; }
     </style>
 </head>
 <body>
@@ -224,34 +245,48 @@
     </div>
 
     <button class="expand-fab" id="expandFab" onclick="expandTopBar()" title="Show top bar">▼</button>
-    <button class="side-handle" id="sideHandle" onclick="toggleSidebar()">◀</button>
+    <button class="side-handle" id="sideHandle">◀</button>
 
     <div class="main-container">
         <div class="sidebar" id="sidebar">
             <select class="student-select" id="studentSelect" onchange="loadStudent(this.value)"></select>
-            <div class="info-box">
-                <div style="color: #8b949e; font-size: 13px;" id="lblCount">Student 0/0</div>
-                <div class="name" id="lblName">-</div>
-                <div class="text-blue" style="font-size: 14px;" id="lblId">ID: -</div>
-                <div class="status-row">
-                    <span id="lblStatus" class="text-red">Status: Not Submitted Yet</span>
-                    <span class="text-blue" id="lblTotal">Total: 0.00</span>
+
+            <div class="info-box panel" id="panelInfo">
+                <div class="panel-head" onclick="togglePanel('panelInfo')"><span class="panel-title">ℹ️ Student Info</span><span class="info-mini" id="infoMini"></span><span class="chev">▾</span></div>
+                <div class="panel-body">
+                    <div style="color: #8b949e; font-size: 13px;" id="lblCount">Student 0/0</div>
+                    <div class="name" id="lblName">-</div>
+                    <div class="text-blue" style="font-size: 14px;" id="lblId">ID: -</div>
+                    <div class="status-row">
+                        <span id="lblStatus" class="text-red">Status: Not Submitted Yet</span>
+                        <span class="text-blue" id="lblTotal">Total: 0.00</span>
+                    </div>
+                    <div id="fgBadge" class="fg-badge nosub">— Not Submitted</div>
+                    <label style="display: flex; gap: 8px; align-items: center; font-weight: bold; cursor: pointer; margin-top: 5px;">
+                        <input type="checkbox" id="cbNotSubmitted" onchange="inputChanged()"> Did Not Submit
+                    </label>
+                    <button class="btn btn-flag" id="btnFlag" onclick="toggleFlag()">🏳️ Flag for Review</button>
                 </div>
-                <div id="fgBadge" class="fg-badge nosub">— Not Submitted</div>
-                <label style="display: flex; gap: 8px; align-items: center; font-weight: bold; cursor: pointer; margin-top: 5px;">
-                    <input type="checkbox" id="cbNotSubmitted" onchange="inputChanged()"> Did Not Submit
-                </label>
-                <button class="btn btn-flag" id="btnFlag" onclick="toggleFlag()">🏳️ Flag for Review</button>
             </div>
+
             <button class="btn text-yellow" style="justify-content: center; height: 35px; flex-shrink: 0;" id="btnLockAll" onclick="toggleLockAll()">🔒 Lock All</button>
-            <div class="form-area" id="formArea"></div>
-            <div class="desc-box">
-                <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
-                    <span>Description:</span>
-                    <button class="lock-btn" id="btnLockDesc" onclick="toggleDescLock()">🔓</button>
-                </div>
-                <textarea id="txtComments" oninput="inputChanged()"></textarea>
+
+            <div class="panel" id="panelForm" style="flex:1;min-height:0;display:flex;flex-direction:column;">
+                <div class="panel-head" onclick="togglePanel('panelForm')"><span>❓ Questions</span><span class="chev">▾</span></div>
+                <div class="form-area panel-body" id="formArea"></div>
             </div>
+
+            <div class="desc-box panel" id="panelDesc">
+                <div class="panel-head" onclick="togglePanel('panelDesc')">
+                    <span>📝 Description:</span>
+                    <span style="display:flex;gap:6px;align-items:center;">
+                        <button class="lock-btn" id="btnLockDesc" onclick="event.stopPropagation(); toggleDescLock()">🔓</button>
+                        <span class="chev">▾</span>
+                    </span>
+                </div>
+                <textarea class="panel-body" id="txtComments" oninput="inputChanged()"></textarea>
+            </div>
+
             <div class="btn-row" style="margin-top: auto;">
                 <button class="btn btn-clear" onclick="clearInputs()">Clear</button>
                 <button class="btn btn-submit" id="btnSubmit" onclick="submitGrade()">Submit</button>
@@ -285,6 +320,10 @@
             lockStates: {},
             isDescLocked: false,
         };
+
+        let sidebarWidth = parseInt(localStorage.getItem('grader-sidebar-w')) || 330;
+        const SIDEBAR_MIN = 260;
+        const SIDEBAR_MAX = 520;
 
         const el = id => document.getElementById(id);
         const setText = (id, text) => { el(id).innerText = text; };
@@ -336,11 +375,11 @@
             el('topBar').style.display = 'flex';
             el('expandFab').classList.remove('show');
         }
-
+        
         function updateSideHandle() {
             const hidden = el('sidebar').classList.contains('hidden');
             const h = el('sideHandle');
-            h.style.left = hidden ? '0px' : '330px';
+            h.style.left = hidden ? '0px' : sidebarWidth + 'px';
             h.innerText = hidden ? '▶' : '◀';
         }
 
@@ -395,7 +434,7 @@
 
         async function initApp() {
             applySavedTheme();
-            updateSideHandle();
+            applySidebarWidth();
             const res = await fetch('/api/init');
             state.appData = await res.json();
             state.appData.questions.forEach(q => state.lockStates[q] = false);
@@ -460,6 +499,7 @@
             setText('lblName', `${student.name} ${student.surname}`);
             setText('lblId', `ID: ${student.id}`);
             el('studentSelect').value = state.currentIndex;
+            updateInfoMini();
         }
 
         function applyGradesToForm(student, grades, desc, notSub) {
@@ -591,6 +631,7 @@
 
             if (totalCalc === null) totalCalc = calculateTotalFromForm();
             setText('lblTotal', `Total: ${totalCalc.toFixed(2)}`);
+            updateInfoMini();
 
             const btnSubmit = el('btnSubmit');
             if (hasSessionEdit(currentStudent().id)) {
@@ -672,8 +713,9 @@
 
         function toggleSidebar() {
             el('sidebar').classList.toggle('hidden');
-            updateSideHandle();
+            applySidebarWidth();
         }
+
         function togglePDF() { el('pdfArea').classList.toggle('hidden'); }
         function toggleStats() { el('statsSidebar').classList.toggle('active'); }
 
@@ -739,6 +781,50 @@
             if (!confirm("Switch assignment? Unsaved changes will be lost.")) return;
             await fetch('/api/switch', { method: 'POST' });
             location.href = '/';
+        }
+
+        function applySidebarWidth() {
+            const sb = el('sidebar');
+            sb.style.width = sidebarWidth + 'px';
+            sb.style.minWidth = sidebarWidth + 'px';
+            updateSideHandle();
+        }
+
+        function togglePanel(id) { el(id).classList.toggle('collapsed'); }
+
+        (function initSidebarResize() {
+            const h = el('sideHandle');
+            let dragging = false, moved = false, startX = 0, startW = 0;
+            h.addEventListener('pointerdown', e => {
+                dragging = true; moved = false;
+                startX = e.clientX; startW = sidebarWidth;
+                h.setPointerCapture(e.pointerId);
+            });
+            h.addEventListener('pointermove', e => {
+                if (!dragging) return;
+                const dx = e.clientX - startX;
+                if (Math.abs(dx) > 3) moved = true;
+                if (!moved) return;
+                sidebarWidth = Math.max(140, Math.min(SIDEBAR_MAX, startW + dx));
+                applySidebarWidth();
+            });
+            h.addEventListener('pointerup', () => {
+                if (!dragging) return;
+                dragging = false;
+                if (!moved) { toggleSidebar(); return; }
+                if (sidebarWidth < SIDEBAR_MIN) {
+                    toggleSidebar();
+                } else {
+                    localStorage.setItem('grader-sidebar-w', sidebarWidth);
+                }
+            });
+        })();
+
+        function updateInfoMini() {
+            const s = currentStudent();
+            if (!s) return;
+            const total = el('lblTotal').innerText.replace('Total: ', '');
+            el('infoMini').innerText = `${s.name} ${s.surname} · ${s.id} · ${total}`;
         }
 
         window.onload = initApp;
