@@ -220,6 +220,13 @@
         }
         #panelInfo.collapsed .panel-title { display: none; }
         #panelInfo.collapsed .info-mini { display: inline; }
+
+        .help-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 300; }
+        .help-overlay.open { display: flex; }
+        .help-box { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; width: 380px; max-height: 80vh; overflow-y: auto; }
+        .help-box table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .help-box td { padding: 6px 4px; border-bottom: 1px solid var(--border); }
+        .help-box kbd { background: var(--bg-main); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -312,6 +319,27 @@
         </div>
     </div>
 
+    <div class="help-overlay" id="helpOverlay" onclick="if(event.target===this)toggleHelp()">
+        <div class="help-box">
+            <h3 style="margin-bottom:10px;">⌨️ Shortcuts</h3>
+            <table>
+                <tr><td>Next / Prev student</td><td><kbd>PageDown</kbd> / <kbd>PageUp</kbd></td></tr>
+                <tr><td>Next / Prev field</td><td><kbd>↓</kbd>/<kbd>Enter</kbd> — <kbd>↑</kbd>/<kbd>Shift+Enter</kbd></td></tr>
+                <tr><td>Submit</td><td><kbd>Ctrl+Enter</kbd></td></tr>
+                <tr><td>Submit + next</td><td><kbd>Ctrl+Shift+Enter</kbd></td></tr>
+                <tr><td>Clear</td><td><kbd>Alt+C</kbd></td></tr>
+                <tr><td>Did Not Submit</td><td><kbd>Alt+X</kbd></td></tr>
+                <tr><td>Flag</td><td><kbd>F</kbd></td></tr>
+                <tr><td>Max (focused)</td><td><kbd>Alt+M</kbd></td></tr>
+                <tr><td>Lock (focused)</td><td><kbd>Alt+L</kbd></td></tr>
+                <tr><td>Lock all</td><td><kbd>Ctrl+Shift+L</kbd></td></tr>
+                <tr><td>Search</td><td><kbd>/</kbd></td></tr>
+                <tr><td>Topbar / Sidebar / PDF / Stats / Theme</td><td><kbd>Alt+H</kbd>/<kbd>Alt+B</kbd>/<kbd>Alt+P</kbd>/<kbd>Alt+S</kbd>/<kbd>Alt+T</kbd></td></tr>
+                <tr><td>Help</td><td><kbd>?</kbd></td></tr>
+            </table>
+        </div>
+    </div>
+
     <script>
         const state = {
             appData: { questions: [], max_grades: [], students: [], stats: {} },
@@ -375,7 +403,11 @@
             el('topBar').style.display = 'flex';
             el('expandFab').classList.remove('show');
         }
-        
+        function toggleTopBar() {
+            if (el('topBar').style.display === 'none') expandTopBar();
+            else collapseTopBar();
+        }
+
         function updateSideHandle() {
             const hidden = el('sidebar').classList.contains('hidden');
             const h = el('sideHandle');
@@ -680,7 +712,7 @@
             el(`q_${q}`).disabled = locked || !currentStudent().has_pdf || isChecked('cbNotSubmitted');
         }
         function toggleLock(q) {
-            setLockUI(q, !state.lockStates[q]);
+            setLockUI(q, !storeFor(currentStudent().id)[q]);
             syncLockAll();
         }
         function toggleDescLock() {
@@ -843,6 +875,83 @@
             el('btnLockDesc').innerText = store.desc ? "🔒" : "🔓";
             syncLockAll();
         }
+
+        function qInputs() {
+            return state.appData.questions.map(q => el(`q_${q}`));
+        }
+        function focusedQuestion() {
+            const a = document.activeElement;
+            if (a && a.id && a.id.startsWith('q_')) return a.id.slice(2);
+            return null;
+        }
+        function moveField(dir) {
+            const inputs = qInputs();
+            let idx = inputs.indexOf(document.activeElement);
+            idx = idx === -1 ? 0 : Math.max(0, Math.min(inputs.length - 1, idx + dir));
+            const t = inputs[idx];
+            if (t) { t.focus(); t.select(); }
+        }
+        function maxFocused() {
+            const q = focusedQuestion();
+            if (!q) return;
+            const i = state.appData.questions.indexOf(q);
+            if (i >= 0) setMax(q, state.appData.max_grades[i]);
+        }
+        function lockFocused() {
+            const q = focusedQuestion();
+            if (q) toggleLock(q);
+        }
+        function toggleHelp() { el('helpOverlay').classList.toggle('open'); }
+
+        document.addEventListener('keydown', e => {
+            const a = document.activeElement;
+            const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT');
+
+            if (e.key === 'Escape') {
+                if (typing) a.blur();
+                el('helpOverlay').classList.remove('open');
+                return;
+            }
+
+            if (typing && a.classList.contains('q-input')) {
+                if (e.key === 'Enter') { e.preventDefault(); moveField(e.shiftKey ? -1 : 1); return; }
+                if (e.key === 'ArrowDown') { e.preventDefault(); moveField(1); return; }
+                if (e.key === 'ArrowUp') { e.preventDefault(); moveField(-1); return; }
+            }
+
+            if (typing) return;
+
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                if (e.shiftKey) submitGrade().then(() => goNext());
+                else submitGrade();
+                return;
+            }
+            if (e.ctrlKey && e.shiftKey && e.code === 'KeyL') { e.preventDefault(); toggleLockAll(); return; }
+
+            if (e.key === 'PageDown') { e.preventDefault(); goNext(); return; }
+            if (e.key === 'PageUp') { e.preventDefault(); goPrev(); return; }
+
+            if (e.altKey) {
+                switch (e.code) {
+                    case 'KeyC': e.preventDefault(); clearInputs(); return;
+                    case 'KeyX': e.preventDefault(); el('cbNotSubmitted').click(); return;
+                    case 'KeyM': e.preventDefault(); maxFocused(); return;
+                    case 'KeyL': e.preventDefault(); lockFocused(); return;
+                    case 'KeyB': e.preventDefault(); toggleSidebar(); return;
+                    case 'KeyP': e.preventDefault(); togglePDF(); return;
+                    case 'KeyS': e.preventDefault(); toggleStats(); return;
+                    case 'KeyT': e.preventDefault(); toggleTheme(); return;
+                    case 'KeyH': e.preventDefault(); toggleTopBar(); return;
+                }
+            }
+
+            switch (e.key) {
+                case '/': e.preventDefault(); toggleSearch(); break;
+                case '?': e.preventDefault(); toggleHelp(); break;
+                case 'f': case 'F': toggleFlag(); break;
+            }
+        });
 
         window.onload = initApp;
     </script>
