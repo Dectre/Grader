@@ -1,118 +1,277 @@
-# Homework Grading System (Go Version)
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Gin-Web_Framework-blue?style=flat-square"/>
+  <img src="https://img.shields.io/github/v/release/Dectre/Grader?style=flat-square&color=green"/>
+  <img src="https://img.shields.io/github/license/Dectre/Grader?style=flat-square"/>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square"/>
+</p>
 
-A high-performance, cross-platform desktop application designed to streamline and accelerate the grading process for assignments and exams. This system is specifically tailored to process, manage, and grade files exported from Moodle, eliminating the need to manually open files and record grades in separate spreadsheets. 
+<h1 align="center">📚 Grader</h1>
+<p align="center"><strong>A fast, browser-based homework grading assistant built in Go</strong></p>
 
-Built with **Go (Golang)** and **Gin**, it offers blazing-fast performance and compiles into a single, easy-to-distribute executable file.
+---
 
-## Key Features
+## 🎯 What is Grader?
 
-- **Automated File Matching**: Automatically detects and links PDF files to students based on their First and Last names, without relying on strict file naming conventions.
-- **Built-in PDF Viewer**: View submissions directly within the browser with native inline rendering, zoom, and page navigation.
-- **Grade State Management**: Smartly tracks the status of each student, categorizing them into "Not Submitted Yet", "Unsaved Changes", and "Submitted".
-- **Quick Search & Navigation**: Jump directly to any student using the autocomplete search bar by typing their Name, Surname, or Student ID.
-- **Advanced Excel Export**: Automatically generates a fully formatted Excel file (`grades.xlsx`) featuring customized fonts (Vazirmatn), cell styling, frozen panes, and dynamic statistical formulas (Mean, Median, Max, Min).
-- **Theme Support**: Includes native Dark Mode and Light Mode for comfortable viewing during extended grading sessions.
-- **Zero-Dependency Distribution**: The UI (`index.html`) and assets (`fonts/`) are embedded directly into the executable. No external runtime (like Python or Node.js) is required for the end-user.
+Grader is a **zero-dependency, cross-platform desktop app** that turns the painful workflow of grading PDF submissions into a fast, keyboard-driven, one-screen experience.
 
-## Directory and File Structure
+It's built for teaching assistants who receive zip exports from **Moodle**, **eLearn**, or similar LMSs and need to:
 
-For the application to run correctly, your project directory must strictly follow this structure. *(Note: `index.html` and `fonts/` are embedded in the compiled binary, so you only need to manage the folders below).*
+- View each student's PDF submission next to the rubric,
+- Type grades, descriptions, and flags,
+- Export a polished Excel report with live statistics,
+- Do it all — **without** juggling 30 PDF windows and a separate spreadsheet.
+
+Written in **Go + Gin**, the UI (HTML/CSS/JS) is embedded into a **single executable** (~15 MB). No Python, no Node, no installer. Just double-click.
+
+---
+
+## ✨ Features
+
+### 🗂️ Multi-Assignment System
+- Each assignment lives in its own folder: `Assignments/<name>/{Data, PDFs, output}`.
+- A persistent `assignments.json` registry prevents stray folders from appearing as assignments.
+- Switch between assignments at any time — pick, create, rename, or delete from a single screen.
+
+### 🌐 Web-Based Setup
+- Upload `rubric.csv` and `students.csv` directly from the browser — no manual folder editing.
+- Inline editor for quick paste/edit without leaving the app.
+- Bulk PDF import: drop a **zip** (eLearn export) or multiple PDFs; zip entries are renamed after their parent folder automatically.
+
+### 🖥️ Split-Screen Grading
+- PDF on the right, controls on the left — always in view.
+- Resizable student panel (drag the edge, touch-friendly) with auto-collapse when too small.
+- Collapsible accordion sections (Info / Questions / Description).
+- Collapsible top bar (`Alt+H`) for maximum PDF real-estate.
+
+### ⌨️ Keyboard-First Workflow
+A full set of typing-safe shortcuts — never reach for the mouse:
+
+| Action | Shortcut |
+|---|---|
+| Next / Prev student | `PageDown` / `PageUp` |
+| Next / Prev grade field | `↓`/`Enter` — `↑`/`Shift+Enter` |
+| Submit | `Ctrl+Enter` |
+| Submit + next student | `Ctrl+Shift+Enter` |
+| Clear form | `Alt+C` |
+| Did Not Submit | `Alt+X` |
+| Flag for review | `F` |
+| Max (focused field) | `Alt+M` |
+| Lock (focused field) | `Alt+L` |
+| Lock / Unlock all | `Ctrl+Shift+L` |
+| Search | `/` |
+| Toggle Sidebar / PDF / Stats / Theme | `Alt+B` / `Alt+P` / `Alt+S` / `Alt+T` |
+| Collapse / expand top bar | `Alt+H` |
+| Open shortcuts help | `?` |
+| Leave field / close dialogs | `Esc` |
+
+Shortcuts **never fire while typing** — only field navigation is active inside inputs.
+
+### 🎨 Modern UI
+- **Dark / Light theme** persisted across all screens (select page + grader).
+- Smooth transitions, soft shadows, custom scrollbars, gradient accents.
+- Natural alphanumeric sorting.
+- Sort assignments by **Name**, **Created date**, or **Modified date** (asc/desc, remembered).
+- Last-selected assignment highlighted ⭐.
+
+### 📊 Live Statistics
+- Per-question `Mean`, `Median`, `Max`, `Min`, `Count` — updated on every submission.
+- Shown in a toggleable sidebar, **and** baked into the exported Excel as live formulas.
+
+### 📥 Advanced Excel Export
+- Generated `grades.xlsx` with the **Vazirmatn** Persian font, frozen panes, thick/thin borders.
+- Dynamic formulas for `Total Score` (ignores "Not Submitted" students).
+- Auto-stat rows (Graded Count, Mean, Median, Max, Min).
+- Flagged students are highlighted yellow via conditional formatting.
+- Separate `grades.csv` acts as an internal state database for persistence.
+
+### 🔒 Per-Student Locks
+- Lock individual grade fields or the description — **per student**, so locking one doesn't affect the next.
+- `Max` button respects locks (won't overwrite a graded field).
+- `Lock All` / `Unlock All` toggle.
+
+### 🚩 Flags & Absent Markers
+- Flag a student for review — visible in the dropdown with a 🚩 icon.
+- Mark a student as "Did Not Submit" — zeroed out in totals, excluded from stats.
+
+### 🔎 Smart Search
+- Search by name, surname, or student ID.
+- Inline results with RTL support for Persian names.
+
+---
+
+## 📁 Directory Structure
 
 ```text
-ProjectFolder/
- ├── Grader.exe          # The compiled executable (or 'grader' on Linux/macOS)
- ├── PDFs/               # Place all student PDF submissions here
- ├── Data/
- │   ├── students.csv    # List of students (Moodle export format)
- │   └── rubric.csv      # Grading criteria and max scores
- └── output/             # Automatically generated upon first run
-     ├── grades.csv      # Internal state database
-     └── grades.xlsx     # Final formatted report with statistics
+GraderApp/
+├── Grader.exe                    # The compiled binary
+└── Assignments/
+    ├── assignments.json          # Registry of assignments (auto-managed)
+    ├── HW1/
+    │   ├── Data/
+    │   │   ├── students.csv      # Student list (Moodle export format)
+    │   │   └── rubric.csv        # Questions + max scores
+    │   ├── PDFs/                 # Student PDF submissions
+    │   └── output/
+    │       ├── grades.csv        # Internal state DB
+    │       └── grades.xlsx       # Final Excel report
+    └── CA2/
+        └── ...                   # Another assignment
 ```
 
-## Input Files Guide
+You don't create this structure manually — the app **prompts** you to create a new assignment via the web UI on first launch.
 
-To ensure data is processed accurately, your input files must follow these structures:
+---
 
-### 1. Assignment Files (PDFs)
-Place all PDF files downloaded from Moodle into the `PDFs` folder. The application searches for the student's First and Last name within the file name (ignoring spaces, underscores, and zero-width non-joiners).
-- **Valid File Name Example**: `امیرعلی دهقانی_1995188_assignsubmission_file_HW4-Spring2026.pdf`
+## 🚀 Quick Start
 
-### 2. Student List (`students.csv`)
-This file must be placed in the `Data` folder and saved with **UTF-8 encoding** (UTF-8 with BOM is fully supported and automatically handled). 
-- **File Structure Example**:
-  ```csv
-  نام,نام خانوادگی,نام کاربری,آدرس پست الکترونیک,گروه‌ها
-  امیرعلی,دهقانی,810102443,amiralidehqani@ut.ac.ir,
-  ```
-
-### 3. Grading Rubric (`rubric.csv`)
-This file must also be placed in the `Data` folder. The application dynamically reads the first column as the Question Name and the second column as the Maximum Score.
-- **File Structure Example**:
-  ```csv
-  بخش,نمره
-  سوال 1,20
-  سوال 2,40
-  سوال 3 الف,20
-  سوال 3 ب,20
-  ```
-
-## Installation & Building
-
-### For End Users (Recommended)
-1. Download the latest `Grader.exe` (or `grader` for macOS/Linux) from the [Releases](#) page.
-2. Create the `Data` and `PDFs` folders next to the executable.
-3. Add your `students.csv` and `rubric.csv` to the `Data` folder.
-4. Double-click `Grader.exe` to run.
+### For End Users
+1. Download the latest release from [Releases](https://github.com/Dectre/Grader/releases).
+2. Place `Grader.exe` (or `grader` on macOS/Linux) in any folder.
+3. Double-click it. Your default browser opens at **http://localhost:8080**.
+4. The web UI appears. Click **Create** to make your first assignment, or pick an existing one.
+5. Use the ⚙️ button to upload your `students.csv`, `rubric.csv`, and PDFs.
+6. Select the assignment → start grading.
 
 ### For Developers
-Ensure you have [Go 1.21+](https://go.dev/dl/) installed on your system.
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd <repository-folder>
-   ```
-2. Install dependencies:
-   ```bash
-   go mod tidy
-   ```
-3. Build the executable:
-   ```bash
-   # For Windows
-   go build -o Grader.exe
-   
-   # For Linux/macOS
-   go build -o grader
-   
-   # Cross-compile for Windows from Linux/macOS
-   GOOS=windows GOARCH=amd64 go build -o Grader.exe
-   ```
+Requires **Go 1.21+**.
 
-## Usage
+```bash
+git clone https://github.com/Dectre/Grader.git
+cd Grader
+go mod tidy
 
-1. Ensure your `Data/students.csv` and `Data/rubric.csv` are correctly populated.
-2. Run the application:
-   ```bash
-   ./Grader.exe   # On Windows, just double-click or run 'Grader.exe'
-   ```
-3. The application will automatically open your default web browser at:
-   **http://localhost:8080**
-4. If the `Data` folder is missing or empty, the app will generate template files and prompt you to fill them before proceeding.
+# Build
+go build -o Grader.exe          # Windows
+go build -o grader              # Linux/macOS
 
-## Outputs
+# Cross-compile for Windows from Linux/macOS
+GOOS=windows GOARCH=amd64 go build -o Grader.exe
+```
 
-Upon submitting your first grade, the application will automatically create an `output` folder. The following files are generated and updated with every submission:
+Run it:
+```bash
+./Grader.exe   # or ./grader
+```
 
-- **`grades.csv`**: An internal, lightweight database used to persist submission states (e.g., `_Submitted`, `Not Submitted`) across different application sessions.
-- **`grades.xlsx`**: The final, cleanly formatted export file. It includes:
-  - Itemized grades and descriptions.
-  - Dynamic Excel formulas for `Total Score` (ignoring "Not Submitted" students).
-  - Statistical rows (Mean, Median, Max, Min) calculated dynamically.
-  - Professional styling with the "Vazirmatn" font, thick/thin borders, and frozen panes for easy scrolling.
+---
 
-## Troubleshooting
+## 🗃️ Input Files
 
-- **Port 8080 is already in use**: The application requires port `8080`. Ensure no other service (like another web server) is using this port.
-- **PDF not loading**: Ensure the PDF file name contains both the student's first and last name exactly as they appear in `students.csv` (without spaces or special characters).
-- **Excel formatting issues**: The `grades.xlsx` file is actively locked by the application while it runs. Do not keep the Excel file open in Microsoft Excel while submitting grades in the app, as this will cause a "file in use" error. Close Excel before saving new grades.
+### `students.csv`
+Moodle's student export format. Must have these columns (UTF-8 with or without BOM):
+
+```csv
+نام,نام خانوادگی,نام کاربری
+علی,احمدی,810101234
+زهرا,محمدی,810105678
+```
+
+### `rubric.csv`
+Two columns: `Question,Max Grade`.
+
+```csv
+Question,Max Grade
+سوال ۱,20
+سوال ۲,30
+سوال ۳,50
+```
+
+### PDFs
+Two ways to import:
+- **Bulk zip upload** (recommended): upload the Moodle zip; each PDF is renamed after its parent folder.
+- **Multiple PDFs**: drop several PDFs at once.
+
+The app matches each PDF to a student by searching the filename for the student's first and last name (ignoring spaces, underscores, and ZWNJ characters).
+
+---
+
+## 🏗️ Architecture
+
+```text
+grader/
+├── main.go                          # Entry point + browser launch
+├── index.html                       # Grader UI (embedded)
+├── select.html                      # Assignment selector UI (embedded)
+├── fonts/                           # Vazirmatn + Inter (embedded)
+└── internal/
+    ├── api/
+    │   ├── server.go                # Gin router + auth middleware
+    │   └── select_handlers.go       # Assignment CRUD + file handlers
+    ├── manager/
+    │   ├── manager.go               # DataManager: load/save students, grades
+    │   ├── exporter.go              # Excel + CSV report builder
+    │   ├── assignments.go           # Registry (assignments.json)
+    │   └── pdfimport.go             # Zip extraction + PDF import
+    ├── models/                      # Student struct
+    └── utils/                       # String cleaning helpers
+```
+
+The `index.html`, `select.html`, and `fonts/` are **embedded** into the binary via `go:embed`, so the compiled executable is fully self-contained.
+
+---
+
+## 🧪 Testing the Workflow
+
+1. Run the app → browser opens.
+2. Click **Create**, name it `HW1`.
+3. Click ⚙️ → upload a zip of PDFs, or edit `rubric.csv` and `students.csv` inline.
+4. Click the `HW1` item to open the grader.
+5. Use `PageDown` to cycle students, `Enter` to jump between grade fields, `Ctrl+Enter` to submit.
+6. Press `?` anytime to see the shortcut cheat-sheet.
+7. When done, click ⬇️ **Excel** to download the final report.
+
+---
+
+## ⚠️ Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| **"Port 8080 already in use"** | Another service is using 8080. Stop it, or edit `server.Run(":8080")` in `main.go`. |
+| **PDF not matching a student** | Ensure the PDF filename contains both the first and last name. Spaces and underscores are ignored. |
+| **Excel file locked** | Close `grades.xlsx` in Excel before submitting new grades — the app writes to it on every save. |
+| **Theme or settings lost** | Settings are stored in `localStorage`. Clearing browser data resets them. |
+| **Assignment disappeared** | Only directories with a `Data/` subfolder are auto-imported. Check `Assignments/assignments.json`. |
+
+---
+
+## 🤝 Contributing
+
+Pull requests are welcome! For major changes, please open an issue first.
+
+```bash
+# Create a feature branch
+git checkout -b feature/my-thing
+
+# Keep commits focused
+git commit -m "feat(ui): my new feature"
+
+# Push and open a PR
+git push origin feature/my-thing
+```
+
+Commit message conventions: `feat:`, `fix:`, `refactor:`, `style:`, `docs:`.
+
+---
+
+## 📜 License
+
+This project is open source. See [LICENSE](LICENSE) for details.
+
+---
+
+## 💡 Why Go?
+
+- **Single binary, zero dependencies** — ship a `.exe` to TAs who have never heard of Python.
+- **Blazing fast** — Excel generation and PDF matching happen instantly, even with 200+ students.
+- **Cross-platform** — same source compiles to Windows, macOS, and Linux.
+- **Self-hosted** — no cloud, no telemetry, no data leaves the machine.
+
+---
+
+<div align="center">
+
+**⭐ If you found this repository helpful, please give it a star!**
+
+</div>
