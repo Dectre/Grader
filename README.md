@@ -261,15 +261,6 @@ This project is open source. See [LICENSE](LICENSE) for details.
 
 ---
 
-## 💡 Why Go?
-
-- **Single binary, zero dependencies** — ship a `.exe` to TAs who have never heard of Python.
-- **Blazing fast** — Excel generation and PDF matching happen instantly, even with 200+ students.
-- **Cross-platform** — same source compiles to Windows, macOS, and Linux.
-- **Self-hosted** — no cloud, no telemetry, no data leaves the machine.
-
----
-
 <div align="center">
 
 **⭐ If you found this repository helpful, please give it a star!**
